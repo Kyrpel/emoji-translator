@@ -1673,7 +1673,7 @@ const EmojiTranslator = () => {
 
         <div className="text-center mb-12">
           <h1 className={`text-6xl font-black mb-4 drop-shadow-lg ${isDark ? 'text-yellow-200' : 'text-red-900'}`}>
-            ✨ Emoji Translator
+            <span className="inline-block animate-fire">🔥</span> Emoji Translator
           </h1>
           <p className={`text-xl font-semibold ${isDark ? 'text-orange-200' : 'text-red-800'}`}>
             Turn text into emoji vibes. Fun first. Accuracy never.
@@ -1909,8 +1909,30 @@ const EmojiTranslator = () => {
             opacity: 0.35;
           }
         }
+        @keyframes fire {
+          0%, 100% {
+            transform: scale(1) rotate(-2deg);
+            filter: brightness(1);
+          }
+          25% {
+            transform: scale(1.1) rotate(2deg);
+            filter: brightness(1.2);
+          }
+          50% {
+            transform: scale(1.05) rotate(-1deg);
+            filter: brightness(1.1);
+          }
+          75% {
+            transform: scale(1.15) rotate(1deg);
+            filter: brightness(1.3);
+          }
+        }
         .animate-float {
           animation: float 4s ease-in-out infinite;
+        }
+        .animate-fire {
+          animation: fire 0.5s ease-in-out infinite;
+          display: inline-block;
         }
       `}</style>
     </div>

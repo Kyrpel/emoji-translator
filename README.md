@@ -53,6 +53,18 @@ VITE_OPENAI_API_KEY=your-openai-api-key-here
 - **Only** in "Vibe" mode
 - **Only** if you have the API key set
 
+**What Makes a Sentence "Complex"?**
+
+A sentence is considered "complex" if it meets **ANY** of these criteria:
+
+- **More than 15 words**: `"I am going to the store because I need to buy groceries for dinner tonight"` (16 words)
+- **Contains multiple clauses**: Has words like `but`, `however`, `although`, `because`, `if`, `when`, `while`, `since`
+  - Example: `"I wanted to go but I was tired"`
+  - Example: `"When I arrived, the meeting had already started"`
+- **Contains question words**: `what`, `where`, `when`, `why`, `how`, `who`, `which`
+  - Example: `"What time is the meeting?"`
+  - Example: `"How do I get there?"`
+
 **Examples that would use API (if key exists):**
 - ✅ `"I wanted to go to the party but I was too tired because I worked all day"` (15+ words)
 - ✅ `"What time should we meet and where should we go?"` (question words)
@@ -91,62 +103,7 @@ npm run build
 
 The built files will be in the `dist` folder.
 
-## Deployment
-
-### Deploy to Vercel
-
-1. Push your code to GitHub
-2. Go to [vercel.com](https://vercel.com)
-3. Import your repository
-4. Add environment variable: `VITE_OPENAI_API_KEY` (if using OpenAI API)
-5. Click "Deploy"
-
-### Deploy to Netlify
-
-1. Push your code to GitHub
-2. Go to [netlify.com](https://netlify.com)
-3. Click "Add new site" → "Import an existing project"
-4. Select your repository
-5. Build settings:
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-6. Add environment variable: `VITE_OPENAI_API_KEY` (if using OpenAI API)
-7. Click "Deploy"
-
-## Tech Stack
-
-- **React 18** - UI framework
-- **Vite** - Build tool
-- **Tailwind CSS** - Styling
-- **Lucide React** - Icons
-- **OpenAI API** - AI translation for complex sentences (optional)
-- **Fuse.js** - Fuzzy search for word matching
-- **Compromise** - Natural language processing
-- **Sentiment** - Sentiment analysis
-
 ## How It Works
-
-### When Is the API Used?
-
-The OpenAI API is **only used** when **ALL** of these conditions are met:
-
-1. ✅ You have `VITE_OPENAI_API_KEY` set in your `.env` file
-2. ✅ You're using **"Vibe" mode** (not Literal, Chaos, or Minimal)
-3. ✅ Your sentence is considered **"complex"** (see definition below)
-
-**If any condition fails**, the app uses smart word matching instead (which works great!).
-
-### What Makes a Sentence "Complex"?
-
-A sentence is considered "complex" if it meets **ANY** of these criteria:
-
-- **More than 15 words**: `"I am going to the store because I need to buy groceries for dinner tonight"` (16 words)
-- **Contains multiple clauses**: Has words like `but`, `however`, `although`, `because`, `if`, `when`, `while`, `since`
-  - Example: `"I wanted to go but I was tired"`
-  - Example: `"When I arrived, the meeting had already started"`
-- **Contains question words**: `what`, `where`, `when`, `why`, `how`, `who`, `which`
-  - Example: `"What time is the meeting?"`
-  - Example: `"How do I get there?"`
 
 ### Translation Flow
 
