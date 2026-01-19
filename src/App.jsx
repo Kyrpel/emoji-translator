@@ -3,6 +3,7 @@ import { Copy, Share2, Shuffle, Sparkles } from 'lucide-react';
 import Fuse from 'fuse.js';
 import nlp from 'compromise';
 import Sentiment from 'sentiment';
+import { removeStopwords } from 'stopword';
 
 // Helper functions for intelligent emoji translation
 const createSpellChecker = (emojiMap) => {
@@ -21,20 +22,36 @@ const spellCorrectWord = (word, spellChecker) => {
   return word;
 };
 
+const removeStopWords = (text) => {
+  const words = text.toLowerCase().split(/\s+/).map(w => w.replace(/[.,!?;:]/g, ''));
+  const filtered = removeStopwords(words);
+  console.log('Stop words removed:', { original: text, words, filtered, result: filtered.join(' ') });
+  return filtered.join(' ');
+};
+
 const parseSentence = (text) => {
   const doc = nlp(text);
   const verbs = doc.verbs().out('array');
   const nouns = doc.nouns().out('array');
   const adjectives = doc.adjectives().out('array');
   
-  const importantWords = [...verbs, ...nouns, ...adjectives]
+  // Split multi-word phrases into individual words
+  const splitWords = (phrases) => {
+    return phrases.flatMap(phrase => phrase.split(/\s+/));
+  };
+  
+  const importantWords = [
+    ...splitWords(verbs),
+    ...splitWords(nouns),
+    ...splitWords(adjectives)
+  ]
     .map(w => w.toLowerCase().trim())
     .filter(w => w.length > 2);
   
   return {
-    verbs,
-    nouns,
-    adjectives,
+    verbs: splitWords(verbs),
+    nouns: splitWords(nouns),
+    adjectives: splitWords(adjectives),
     importantWords
   };
 };
@@ -1464,12 +1481,15 @@ const EmojiTranslator = () => {
 
     const spellChecker = createSpellChecker(emojiMap);
 
-    const isComplex = isComplexSentence(text);
+    const cleanedText = removeStopWords(text);
+    console.log('Cleaned text:', cleanedText);
+    
+    const isComplex = isComplexSentence(cleanedText);
     console.log('Is complex sentence:', isComplex);
     
     if (isComplex && mode === 'vibe') {
       console.log('Trying API for complex sentence...');
-      const apiResult = await translateWithAPI(text);
+      const apiResult = await translateWithAPI(cleanedText);
       if (apiResult) {
         console.log('API result:', apiResult);
         return apiResult;
@@ -1478,7 +1498,7 @@ const EmojiTranslator = () => {
     }
 
     console.log('Using client-side processing...');
-    const parsed = parseSentence(text);
+    const parsed = parseSentence(cleanedText);
     console.log('Parsed sentence:', {
       verbs: parsed.verbs,
       nouns: parsed.nouns,
@@ -1672,9 +1692,12 @@ const EmojiTranslator = () => {
         </button>
 
         <div className="text-center mb-12">
-          <h1 className={`text-6xl font-black mb-4 drop-shadow-lg ${isDark ? 'text-yellow-200' : 'text-red-900'}`}>
-            <span className="inline-block animate-fire">🔥</span> Emoji Translator
+          <h1 className={`text-6xl font-black mb-2 drop-shadow-lg ${isDark ? 'text-yellow-200' : 'text-red-900'}`}>
+            <span className="inline-block animate-fire">🔥</span> EMOJIFY
           </h1>
+          <h2 className={`text-4xl font-bold mb-4 ${isDark ? 'text-orange-200' : 'text-red-800'}`}>
+            Emoji Translator
+          </h2>
           <p className={`text-xl font-semibold ${isDark ? 'text-orange-200' : 'text-red-800'}`}>
             Turn text into emoji vibes. Fun first. Accuracy never.
           </p>
