@@ -8,17 +8,25 @@ import Sentiment from 'sentiment';
 const createSpellChecker = (emojiMap) => {
   const keys = Object.keys(emojiMap);
   return new Fuse(keys, {
-    threshold: 0.4, // 40% similarity threshold
+    threshold: 0.2, // 20% similarity threshold - stricter matching
     includeScore: true
   });
 };
 
-const spellCorrectWord = (word, spellChecker) => {
-  const results = spellChecker.search(word);
-  if (results.length > 0 && results[0].score < 0.6) {
-    return results[0].item; // Return corrected word if similarity is good enough
+const spellCorrectWord = (word, spellChecker, emojiMap) => {
+  // If word exists exactly in map, use it directly
+  if (emojiMap[word]) {
+    return word;
   }
-  return word; // Return original if no good match
+  
+  // Only try fuzzy match if word is likely a typo (very high similarity, >90%)
+  // This prevents correcting valid English words that just aren't in the map
+  const results = spellChecker.search(word);
+  if (results.length > 0 && results[0].score < 0.1) {
+    // Only correct if similarity is very high (>90%), indicating likely typo
+    return results[0].item;
+  }
+  return word; // Return original if no very close match (likely a valid word not in map)
 };
 
 const parseSentence = (text) => {
@@ -198,6 +206,8 @@ const EmojiTranslator = () => {
     walk: ['🚶', '🚶‍♀️', '👣'],
     fly: ['✈️', '🛫', '🦅'],
     drive: ['🚗', '🏎️', '🚙'],
+    driving: ['🚗', '🏎️', '🚙', '🛣️'],
+    hate: ['😡', '💢', '😠', '👿'],
     rain: ['🌧️', '☔', '💧'],
     snow: ['❄️', '⛄', '🌨️'],
     wind: ['💨', '🌬️', '🍃'],
@@ -836,7 +846,7 @@ const EmojiTranslator = () => {
     
     // Spell correct important words
     const correctedWords = parsed.importantWords.map(word => {
-      const corrected = spellCorrectWord(word, spellChecker);
+      const corrected = spellCorrectWord(word, spellChecker, emojiMap);
       if (corrected !== word) {
         console.log(`Spell corrected: "${word}" → "${corrected}"`);
       }
@@ -898,7 +908,7 @@ const EmojiTranslator = () => {
       console.log('Important words for vibe mode:', importantWords);
 
       importantWords.forEach(word => {
-        const corrected = spellCorrectWord(word, spellChecker);
+        const corrected = spellCorrectWord(word, spellChecker, emojiMap);
         console.log(`Checking word: "${word}" (corrected: "${corrected}")`);
         if (emojiMap[corrected]) {
           const emojis = emojiMap[corrected];

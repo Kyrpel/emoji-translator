@@ -2,6 +2,14 @@
 
 Turn any text into emoji vibes. Fun first. Accuracy never. 🎲
 
+<!-- Video Demo -->
+<div align="center">
+  <video width="600" controls>
+    <source src="./docs/demo.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</div>
+
 ## What is This?
 
 A playful web app that translates your text into emojis using AI or smart word matching. Perfect for adding some emoji flair to your messages!
