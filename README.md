@@ -2,12 +2,11 @@
 
 Turn any text into emoji vibes. Fun first. Accuracy never. 🎲
 
-<!-- Video Demo -->
+<!-- Demo GIF -->
 <div align="center">
-  <video width="600" controls>
-    <source src="./docs/demo.mp4" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
+  
+  ![Emoji Translator Demo](./docs/demo.gif)
+  
 </div>
 
 ## What is This?
