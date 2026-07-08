@@ -15,18 +15,24 @@ A playful web app that translates your text into emojis using AI or smart word m
 
 ## Features
 
-- 🎨 **4 Translation Modes**:
+**Free**
+- 🎨 **4 Translation Modes** (instant, runs in your browser):
   - **Vibe**: Captures the emotion and feeling (8-12 emojis)
   - **Literal**: One emoji per word
   - **Chaos**: Random fun mix (8-15 emojis)
   - **Minimal**: Exactly 3 emojis that capture the essence
-- 🤖 **AI-Powered (Optional)**: Supports OpenAI API for complex sentences
-- 🧠 **Smart Fallback**: Uses intelligent word matching when no API key is provided
-- 🌓 **Dark/Light Theme**: Toggle with the sun/moon button
-- 📋 **Copy & Share**: Copy to clipboard or share on social media
-- 🔄 **Shuffle**: Get different emoji combinations for the same text
-- 📜 **History**: View your last 5 translations
+- 🤖 **5 free AI translations** to taste the good stuff
+- 🌓 **Dark/Light Theme**, 📋 **Copy & Share**, 🔄 **Shuffle**, 📜 last-5 history
+- 🖼️ **Share cards** (with a small watermark)
 - 📱 **Responsive**: Works on mobile and desktop
+
+**Pro — $4.90 once (no subscription)**
+- ✨ **Unlimited AI translations** in every mode (gpt-4o-mini, context-aware)
+- 🔥 **Personality modes**: Roast, Gen Z 💅, Flirty 😏, Passive-Aggressive 🙂, Emoji Story 📖
+- 🖼️ **Clean share cards** — no watermark
+- 📜 **Unlimited saved history**
+
+No accounts — buyers get a license key by email and paste it in once. See [SETUP-MONETIZATION.md](./SETUP-MONETIZATION.md) for how to go live.
 
 ## How to Use
 
@@ -43,56 +49,22 @@ A playful web app that translates your text into emojis using AI or smart word m
 npm install
 ```
 
-### 2. Setup AI API (Optional)
+### 2. Setup the AI Backend (Optional for local dev)
 
-The app works **perfectly fine without any API key** using smart word matching. However, you can optionally add an OpenAI API key for better results on complex sentences.
+Local translation works with no setup at all. The ✨ AI Translate button and Pro features are served by serverless functions in `functions/api/` — the OpenAI key lives **server-side only** (never in the client bundle).
 
-#### Option A: Use OpenAI API (Optional - Only for Complex Sentences)
+For local development with the API:
 
-1. Get an API key from [OpenAI](https://platform.openai.com/api-keys)
-2. Create a `.env` file in the root directory:
 ```bash
-VITE_OPENAI_API_KEY=your-openai-api-key-here
+# .dev.vars (gitignored)
+OPENAI_API_KEY=sk-...
+LEMONSQUEEZY_STORE_ID=...
+LEMONSQUEEZY_PRODUCT_ID=...
+
+npx wrangler pages dev -- npm run dev
 ```
 
-**When the API is used:**
-- **Only** for sentences with 15+ words, multiple clauses, or question words
-- **Only** in "Vibe" mode
-- **Only** if you have the API key set
-
-**What Makes a Sentence "Complex"?**
-
-A sentence is considered "complex" if it meets **ANY** of these criteria:
-
-- **More than 15 words**: `"I am going to the store because I need to buy groceries for dinner tonight"` (16 words)
-- **Contains multiple clauses**: Has words like `but`, `however`, `although`, `because`, `if`, `when`, `while`, `since`
-  - Example: `"I wanted to go but I was tired"`
-  - Example: `"When I arrived, the meeting had already started"`
-- **Contains question words**: `what`, `where`, `when`, `why`, `how`, `who`, `which`
-  - Example: `"What time is the meeting?"`
-  - Example: `"How do I get there?"`
-
-**Examples that would use API (if key exists):**
-- ✅ `"I wanted to go to the party but I was too tired because I worked all day"` (15+ words)
-- ✅ `"What time should we meet and where should we go?"` (question words)
-- ✅ `"When I arrived at the office, the meeting had already started"` (multiple clauses)
-
-**Examples that use word matching (even with API key):**
-- ❌ `"I love pizza"` (simple, < 15 words)
-- ❌ `"Happy birthday!"` (simple, < 15 words)
-- ❌ Any sentence in Literal, Chaos, or Minimal mode (API only works in Vibe mode)
-
-**Without API key**: The app uses intelligent word matching, sentiment analysis, and fuzzy search - works great for all sentences!
-
-#### Option B: No API Key (Default)
-
-Just skip this step! The app uses:
-- Smart word-to-emoji mapping (1000+ words)
-- Fuzzy search for typos
-- Sentiment analysis for mood
-- Natural language processing
-
-**Note**: The app automatically falls back to word matching if the API fails or no key is provided.
+Full deployment + payments walkthrough: [SETUP-MONETIZATION.md](./SETUP-MONETIZATION.md).
 
 ### 3. Run the App
 
@@ -114,27 +86,9 @@ The built files will be in the `dist` folder.
 
 ### Translation Flow
 
-1. **Input Processing**: Your text is analyzed for sentiment, important words, and complexity
-2. **API Check** (only if OpenAI key exists):
-   - ✅ Complex sentence + Vibe mode → Tries OpenAI API first
-   - ❌ API fails or no key → Falls back to word matching
-   - ❌ Not complex or not Vibe mode → Uses word matching directly
-3. **Word Matching** (default/fallback):
-   - Extracts verbs, nouns, and adjectives
-   - Matches words to emoji database (1000+ words)
-   - Uses fuzzy search for typos
-   - Applies sentiment analysis for mood emojis
-4. **Mode Processing**:
-   - **Vibe**: Combines sentiment + important words (8-12 emojis)
-   - **Literal**: One emoji per word
-   - **Chaos**: Random fun mix (8-15 emojis)
-   - **Minimal**: Top 3 most relevant emojis
-
-### API Support Summary
-
-- ✅ **OpenAI**: Supported (GPT-3.5-turbo) - Only for complex sentences in Vibe mode
-- ⚠️ **ZAI**: Utility code exists but not currently integrated in main app
-- ✅ **No API**: Fully functional with smart word matching for all cases
+1. **Live typing** always uses the free local engine: verbs/nouns/adjectives extracted with NLP, matched against a 1000+ word emoji database, fuzzy search for typos, sentiment analysis for mood emojis.
+2. **✨ AI Translate** (explicit button) calls `POST /api/translate`, a serverless function that proxies OpenAI gpt-4o-mini with a mode-specific prompt. Free users get 5 tries; after that it requires a Pro license key, which the server verifies against Lemon Squeezy on every request (cached).
+3. **Personality modes** (Roast, Gen Z, Flirty, Passive-Aggressive, Story) are AI-only and Pro-only — enforced server-side.
 
 ## Examples
 
