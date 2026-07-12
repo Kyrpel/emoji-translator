@@ -29,6 +29,29 @@ Your old keys were `VITE_`-prefixed, which means any previous build shipped them
 
 Alternative if LS signup stalls: Polar.sh has the same model (license keys + checkout); only `functions/api/_shared.js` and `functions/api/license/activate.js` would need their two fetch calls swapped.
 
+## Step 2b — Stripe (optional second checkout, or LS alternative)
+
+> ⚠️ **Tax reality check:** with Stripe **you** are the merchant of record — EU VAT on digital
+> goods is your responsibility (OSS registration in Cyprus, or at minimum enable **Stripe Tax**
+> to auto-calculate it). Lemon Squeezy handles all of that for you, which is why it's the
+> recommended primary. Use Stripe if you want its checkout, lower fees (~2.9% + 30¢ vs ~5% + 50¢),
+> or as a fallback while LS approval is pending.
+
+1. In the Stripe dashboard: Payment Links → New → product "EMOJIFY Pro", **$4.90 one-time**.
+2. In the Payment Link's settings → After payment → **Redirect to your website**:
+   `https://YOUR-SITE/?stripe_session={CHECKOUT_SESSION_ID}` (keep the placeholder literal — Stripe fills it).
+3. In Cloudflare: Workers & Pages → KV → **Create namespace** `emojify-licenses`, then in your
+   Pages project → Settings → Functions → **KV namespace bindings** → bind it as `LICENSES`.
+4. Add env vars to the Pages project: `STRIPE_SECRET_KEY` (from Stripe → Developers → API keys)
+   and `VITE_STRIPE_PAYMENT_LINK` (the Payment Link URL — public, safe in the bundle).
+
+How it works: after payment Stripe redirects back with a session id → the app calls
+`/api/stripe/claim` → the server verifies the session with your secret key, mints an `EMJ-…`
+license key in KV, auto-activates it, and shows it to the buyer to save (no email service needed).
+Same key works in the "already purchased" box on any device (limit 3 activations).
+Refunding a Stripe order? Also disable the key: KV → `emojify-licenses` → edit `key:EMJ-…` → set `"status":"refunded"`.
+Test first with Stripe **test mode**: test-mode Payment Link + test-mode secret key + card `4242 4242 4242 4242`.
+
 ## Step 3 — Deploy to Cloudflare Pages (free, commercial use allowed)
 
 1. Push this repo to GitHub (already set up: `Kyrpel/emoji-translator`).
@@ -40,6 +63,7 @@ Alternative if LS signup stalls: Polar.sh has the same model (license keys + che
    - `LEMONSQUEEZY_STORE_ID` = your store ID
    - `LEMONSQUEEZY_PRODUCT_ID` = your product ID
    - `VITE_LEMON_CHECKOUT_URL` = your Buy link (this one is public — it's just the checkout page)
+   - If using Stripe too: `STRIPE_SECRET_KEY`, `VITE_STRIPE_PAYMENT_LINK`, and the `LICENSES` KV binding (Step 2b)
 4. Redeploy after setting the variables. Optional: add a custom domain (e.g. emojify.app) — shares look far better with a real domain.
 
 ### Local development

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Sparkles, KeyRound, Check } from 'lucide-react';
 import { activateLicense } from '../lib/api.js';
 import { saveLicense } from '../lib/license.js';
-import { CHECKOUT_URL, PRO_PRICE } from '../lib/config.js';
+import { CHECKOUT_URL, STRIPE_PAYMENT_LINK, PRO_PRICE } from '../lib/config.js';
 
 const PERKS = [
   'Unlimited AI translations in every mode',
@@ -63,7 +63,13 @@ const ProModal = ({ isDark, onClose, onActivated }) => {
           ))}
         </ul>
 
-        {CHECKOUT_URL ? (
+        {!CHECKOUT_URL && !STRIPE_PAYMENT_LINK && (
+          <div className={`w-full text-center px-6 py-4 rounded-xl font-bold ${isDark ? 'bg-white/10 text-purple-200' : 'bg-white/70 text-gray-500'}`}>
+            Checkout opening soon ✨
+          </div>
+        )}
+
+        {CHECKOUT_URL && (
           <a
             href={`${CHECKOUT_URL}${CHECKOUT_URL.includes('?') ? '&' : '?'}embed=1`}
             className="lemonsqueezy-button w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold transition-all hover:scale-105 bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-lg"
@@ -71,10 +77,21 @@ const ProModal = ({ isDark, onClose, onActivated }) => {
             <Sparkles className="w-5 h-5" />
             Get Pro — {PRO_PRICE}
           </a>
-        ) : (
-          <div className={`w-full text-center px-6 py-4 rounded-xl font-bold ${isDark ? 'bg-white/10 text-purple-200' : 'bg-white/70 text-gray-500'}`}>
-            Checkout opening soon ✨
-          </div>
+        )}
+
+        {STRIPE_PAYMENT_LINK && (
+          <a
+            href={STRIPE_PAYMENT_LINK}
+            className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold transition-all hover:scale-105 shadow-lg ${
+              CHECKOUT_URL
+                ? isDark
+                  ? 'mt-3 bg-white/15 text-white hover:bg-white/25'
+                  : 'mt-3 bg-white text-purple-700 hover:bg-purple-50'
+                : 'bg-gradient-to-r from-orange-500 to-pink-500 text-white'
+            }`}
+          >
+            💳 {CHECKOUT_URL ? 'Or pay with card (Stripe)' : `Get Pro — ${PRO_PRICE}`}
+          </a>
         )}
 
         <div className={`my-5 flex items-center gap-3 text-xs font-medium ${isDark ? 'text-purple-300' : 'text-gray-500'}`}>

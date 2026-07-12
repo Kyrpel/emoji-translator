@@ -35,6 +35,20 @@ export const activateLicense = async (licenseKey) => {
   }
 };
 
+export const claimStripeSession = async (sessionId) => {
+  try {
+    const res = await fetch('/api/stripe/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, licenseKey: data.licenseKey, error: data.error };
+  } catch {
+    return { ok: false, error: 'network' };
+  }
+};
+
 export const validateLicenseRemote = async (licenseKey, instanceId) => {
   try {
     const res = await fetch('/api/license/validate', {

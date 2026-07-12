@@ -1,15 +1,29 @@
-import { json, readJson } from '../_shared.js';
+import { json, readJson, OWN_KEY_PREFIX } from '../_shared.js';
+
+const ACTIVATION_LIMIT = 3;
 
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  if (!env.LEMONSQUEEZY_STORE_ID || !env.LEMONSQUEEZY_PRODUCT_ID) {
-    return json({ error: 'store_not_configured' }, 503);
-  }
-
   const body = await readJson(request);
   const licenseKey = typeof body?.licenseKey === 'string' ? body.licenseKey.trim() : '';
   if (!licenseKey) return json({ error: 'missing_key' }, 400);
+
+  // Our own (Stripe-sold) keys live in KV.
+  if (licenseKey.startsWith(OWN_KEY_PREFIX)) {
+    if (!env.LICENSES) return json({ error: 'store_not_configured' }, 503);
+    const record = await env.LICENSES.get(`key:${licenseKey}`, { type: 'json' });
+    if (!record || record.status !== 'active') return json({ error: 'invalid_license' }, 400);
+    const activations = record.activations || 0;
+    if (activations >= ACTIVATION_LIMIT) return json({ error: 'activation_limit_reached' }, 400);
+    await env.LICENSES.put(`key:${licenseKey}`, JSON.stringify({ ...record, activations: activations + 1 }));
+    return json({ ok: true, instanceId: `own-${activations + 1}` });
+  }
+
+  // Everything else goes to Lemon Squeezy.
+  if (!env.LEMONSQUEEZY_STORE_ID || !env.LEMONSQUEEZY_PRODUCT_ID) {
+    return json({ error: 'store_not_configured' }, 503);
+  }
 
   try {
     const res = await fetch('https://api.lemonsqueezy.com/v1/licenses/activate', {

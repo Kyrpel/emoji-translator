@@ -33,23 +33,33 @@ export const MODE_PROMPTS = {
 };
 
 // ---------------------------------------------------------------------------
-// License validation against Lemon Squeezy, with in-memory cache.
-// Cache lives per warm isolate; a cold start just costs one extra LS call.
+// License validation, with in-memory cache. Two kinds of keys:
+//  - "EMJ-…"  → sold via Stripe, minted by us, stored in Cloudflare KV (env.LICENSES)
+//  - anything else → Lemon Squeezy license API
+// Cache lives per warm isolate; a cold start just costs one extra lookup.
 // ---------------------------------------------------------------------------
 const licenseCache = new Map();
 const LICENSE_TTL_MS = 6 * 60 * 60 * 1000; // 6 h
 
-export const validateLicense = async (env, licenseKey, instanceId) => {
-  if (!licenseKey) return { valid: false, reason: 'missing_key' };
+export const OWN_KEY_PREFIX = 'EMJ-';
+export const generateOwnKey = () => OWN_KEY_PREFIX + crypto.randomUUID().toUpperCase();
+
+const validateOwnKey = async (env, licenseKey) => {
+  if (!env.LICENSES) return { valid: false, reason: 'store_not_configured' };
+  try {
+    const record = await env.LICENSES.get(`key:${licenseKey}`, { type: 'json' });
+    return record && record.status === 'active'
+      ? { valid: true }
+      : { valid: false, reason: 'invalid_license' };
+  } catch {
+    return { valid: false, reason: 'validation_unavailable' };
+  }
+};
+
+const validateLemonSqueezyKey = async (env, licenseKey, instanceId) => {
   if (!env.LEMONSQUEEZY_STORE_ID || !env.LEMONSQUEEZY_PRODUCT_ID) {
     return { valid: false, reason: 'store_not_configured' };
   }
-
-  const cacheKey = `${licenseKey}:${instanceId || ''}`;
-  const cached = licenseCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < LICENSE_TTL_MS) return cached.result;
-
-  let result;
   try {
     const body = new URLSearchParams({ license_key: licenseKey });
     if (instanceId) body.set('instance_id', instanceId);
@@ -63,13 +73,24 @@ export const validateLicense = async (env, licenseKey, instanceId) => {
     const storeOk = String(data?.meta?.store_id) === String(env.LEMONSQUEEZY_STORE_ID);
     const productOk = String(data?.meta?.product_id) === String(env.LEMONSQUEEZY_PRODUCT_ID);
     const statusOk = data?.license_key?.status === 'active';
-    result = data?.valid && storeOk && productOk && statusOk
+    return data?.valid && storeOk && productOk && statusOk
       ? { valid: true }
       : { valid: false, reason: data?.error || 'invalid_license' };
   } catch {
-    // LS unreachable: fail open for already-cached keys only; otherwise closed.
-    result = { valid: false, reason: 'validation_unavailable' };
+    return { valid: false, reason: 'validation_unavailable' };
   }
+};
+
+export const validateLicense = async (env, licenseKey, instanceId) => {
+  if (!licenseKey) return { valid: false, reason: 'missing_key' };
+
+  const cacheKey = `${licenseKey}:${instanceId || ''}`;
+  const cached = licenseCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < LICENSE_TTL_MS) return cached.result;
+
+  const result = licenseKey.startsWith(OWN_KEY_PREFIX)
+    ? await validateOwnKey(env, licenseKey)
+    : await validateLemonSqueezyKey(env, licenseKey, instanceId);
 
   licenseCache.set(cacheKey, { at: Date.now(), result });
   return result;
