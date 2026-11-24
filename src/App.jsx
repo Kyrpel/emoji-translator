@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Copy, Share2, Shuffle, Sparkles, Lock, Download, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Copy, Share2, Shuffle, Sparkles, Lock, Download, Loader2, Sun, Moon, X } from 'lucide-react';
 import Fuse from 'fuse.js';
 import nlp from 'compromise';
 import Sentiment from 'sentiment';
@@ -15,21 +15,36 @@ import {
   consumeAiUse,
 } from './lib/license.js';
 import { generateShareCard, downloadShareCard } from './lib/shareCard.js';
+import { decodeRiddle, riddleUrl } from './lib/riddle.js';
 import ProModal from './components/ProModal.jsx';
-import { emojiMap, moodEmojis } from './data/emojiMap.js';
+import RiddleSheet from './components/RiddleSheet.jsx';
+import DailyPuzzle from './components/DailyPuzzle.jsx';
+import { emojiMap, cleanEmojiMap, moodEmojis, minimalFallback } from './data/emojiMap.js';
+import { PRO_PRICE } from './lib/config.js';
 
 // AI-only personality modes (Pro). The four classic modes stay free + local.
 const PRO_MODES = [
-  { id: 'roast', label: 'roast', icon: '🔥' },
-  { id: 'genz', label: 'gen z', icon: '💅' },
-  { id: 'flirty', label: 'flirty', icon: '😏' },
-  { id: 'passive', label: 'passive-aggressive', icon: '🙂' },
-  { id: 'story', label: 'story', icon: '📖' },
+  { id: 'roast', label: 'roast', name: 'Roast' },
+  { id: 'genz', label: 'gen z', name: 'Gen Z' },
+  { id: 'flirty', label: 'flirty', name: 'Flirty' },
+  { id: 'passive', label: 'passive-aggressive', name: 'Passive-aggressive' },
+  { id: 'story', label: 'story', name: 'Story' },
 ];
 const PRO_MODE_IDS = PRO_MODES.map((m) => m.id);
 
+// One tap to something funny. Picked because the dictionary gets them gloriously
+// wrong ("died" finds fried shrimp, "whole" finds a whale): accuracy never.
+const STARTERS = [
+  'My dog ate my homework again',
+  'The wifi died during my exam',
+  'I spent my whole paycheck on shoes',
+  'I fell asleep in the meeting',
+];
+const RIDDLE_SAMPLE = 'My cat pushed my coffee off the table';
+
 const HISTORY_STORAGE_KEY = 'emojify_history';
 const HISTORY_CAP_PRO = 200;
+const MODE_STORAGE_KEY = 'emojify_mode';
 
 // Helper functions for intelligent emoji translation
 const createSpellChecker = (emojiMap) => {
@@ -41,6 +56,9 @@ const createSpellChecker = (emojiMap) => {
 };
 
 const spellCorrectWord = (word, spellChecker) => {
+  // An exact dictionary word is never "corrected" (this is how cheeky words,
+  // which are kept out of the fuzzy index, still match when typed).
+  if (Object.prototype.hasOwnProperty.call(emojiMap, word)) return word;
   const results = spellChecker.search(word);
   if (results.length > 0 && results[0].score < 0.6) {
     return results[0].item;
@@ -60,12 +78,12 @@ const parseSentence = (text) => {
   const verbs = doc.verbs().out('array');
   const nouns = doc.nouns().out('array');
   const adjectives = doc.adjectives().out('array');
-  
+
   // Split multi-word phrases into individual words
   const splitWords = (phrases) => {
     return phrases.flatMap(phrase => phrase.split(/\s+/));
   };
-  
+
   const importantWords = [
     ...splitWords(verbs),
     ...splitWords(nouns),
@@ -73,7 +91,7 @@ const parseSentence = (text) => {
   ]
     .map(w => w.toLowerCase().trim())
     .filter(w => w.length > 2);
-  
+
   return {
     verbs: splitWords(verbs),
     nouns: splitWords(nouns),
@@ -95,13 +113,30 @@ const getSentiment = (text) => {
 
 // Built once at module load — the dictionary is static, so rebuilding the
 // fuzzy index on every keystroke (the old behavior) was pure waste.
-const sharedSpellChecker = createSpellChecker(emojiMap);
+// Cheeky words stay out of it, so fuzzy matching never turns "class" into 🍑.
+const sharedSpellChecker = createSpellChecker(cleanEmojiMap);
+
+const readStoredMode = () => {
+  try {
+    const saved = localStorage.getItem(MODE_STORAGE_KEY);
+    if (saved) return saved === 'dark';
+  } catch { /* storage unavailable */ }
+  return document.documentElement.dataset.mode === 'dark';
+};
+
+// Poster type shrinks as the sentence grows, so a long one still fits the flyer.
+const saidSizeFor = (text) =>
+  text.length <= 32
+    ? 'clamp(2.75rem, 2.5vw + 1.75rem, 4.5rem)'
+    : text.length <= 80
+      ? 'clamp(2.25rem, 1.5vw + 1.5rem, 3.25rem)'
+      : 'clamp(1.75rem, 0.75vw + 1.25rem, 2.25rem)';
 
 const EmojiTranslator = () => {
   const [input, setInput] = useState('');
   const [emojis, setEmojis] = useState('');
   const [mode, setMode] = useState('vibe');
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(readStoredMode);
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState(() => {
     if (!getLicense()) return [];
@@ -123,6 +158,21 @@ const EmojiTranslator = () => {
   const [purchasedKey, setPurchasedKey] = useState('');
   const [purchasedKeyCopied, setPurchasedKeyCopied] = useState(false);
 
+  // The empty poster shows a live example, so the first screen is never blank.
+  const [demoText] = useState(() => STARTERS[Math.floor(Math.random() * STARTERS.length)]);
+  const [demoEmojis, setDemoEmojis] = useState('');
+  const [sampleRiddle, setSampleRiddle] = useState(null);
+  // A riddle arriving from a shared link (?g=...).
+  const [incomingRiddle, setIncomingRiddle] = useState(() => {
+    try {
+      return decodeRiddle(new URLSearchParams(window.location.search).get('g'));
+    } catch {
+      return null;
+    }
+  });
+  const [shareAs, setShareAs] = useState('riddle');
+  const inputRef = useRef(null);
+
   const translateText = async (text) => {
     if (!text.trim()) return '';
 
@@ -134,7 +184,7 @@ const EmojiTranslator = () => {
 
     const cleanedText = removeStopWords(text);
     console.log('Cleaned text:', cleanedText);
-    
+
     console.log('Using client-side processing...');
     const parsed = parseSentence(cleanedText);
     console.log('Parsed sentence:', {
@@ -143,7 +193,7 @@ const EmojiTranslator = () => {
       adjectives: parsed.adjectives,
       importantWords: parsed.importantWords
     });
-    
+
     const sentiment = getSentiment(text);
     console.log('Sentiment:', sentiment);
 
@@ -162,7 +212,7 @@ const EmojiTranslator = () => {
     const isQuestioning = /\?/.test(text);
 
     if (mode === 'chaos') {
-      const allEmojis = Object.values(emojiMap).flat();
+      const allEmojis = Object.values(cleanEmojiMap).flat();
       const count = Math.floor(Math.random() * 8) + 5;
       for (let i = 0; i < count; i++) {
         result.push(allEmojis[Math.floor(Math.random() * allEmojis.length)]);
@@ -176,7 +226,7 @@ const EmojiTranslator = () => {
         }
       }
       if (result.length === 0) {
-        result = ['✨', '🎯', '💫'].slice(0, 3);
+        result = minimalFallback.slice(0, 3);
       }
     } else if (mode === 'literal') {
       correctedWords.forEach(word => {
@@ -201,7 +251,7 @@ const EmojiTranslator = () => {
       const importantWords = [...parsed.verbs, ...parsed.nouns]
         .map(w => w.toLowerCase().trim())
         .filter(w => w.length > 2);
-      
+
       console.log('Important words for vibe mode:', importantWords);
 
       importantWords.forEach(word => {
@@ -248,6 +298,25 @@ const EmojiTranslator = () => {
     updateEmojis();
   }, [input, mode]);
 
+  // The example poster follows the chosen free mode (local, never the paid endpoint).
+  useEffect(() => {
+    if (PRO_MODE_IDS.includes(mode)) return;
+    translateText(demoText).then(setDemoEmojis);
+  }, [demoText, mode]);
+
+  // The sample riddle further down the page, translated once on arrival.
+  useEffect(() => {
+    translateText(RIDDLE_SAMPLE).then((e) => setSampleRiddle({ t: RIDDLE_SAMPLE, e }));
+  }, []);
+
+  // Light kraft board or black wall; remembered on this device.
+  useEffect(() => {
+    document.documentElement.dataset.mode = isDark ? 'dark' : 'light';
+    try {
+      localStorage.setItem(MODE_STORAGE_KEY, isDark ? 'dark' : 'light');
+    } catch { /* storage unavailable */ }
+  }, [isDark]);
+
   // Returning from Stripe checkout: ?stripe_session=cs_... → claim key, auto-activate.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -257,7 +326,7 @@ const EmojiTranslator = () => {
     (async () => {
       const claim = await claimStripeSession(sessionId);
       if (!claim.ok || !claim.licenseKey) {
-        setAiError('Payment received but verification failed — contact support with your Stripe receipt.');
+        setAiError('Payment received, but we could not verify it. Contact support with your Stripe receipt.');
         return;
       }
       setPurchasedKey(claim.licenseKey);
@@ -282,6 +351,39 @@ const EmojiTranslator = () => {
       }
     });
   }, []);
+
+  const closeRiddle = () => {
+    setIncomingRiddle(null);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('g');
+      window.history.replaceState({}, '', url.pathname + url.search);
+    } catch { /* ignore */ }
+  };
+
+  // Shared Daily results link to /#daily; the section only exists once React has rendered.
+  useEffect(() => {
+    if (window.location.hash === '#daily') {
+      requestAnimationFrame(() => document.getElementById('daily')?.scrollIntoView());
+    }
+  }, []);
+
+  const makeYourOwn = () => {
+    closeRiddle();
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  // Escape closes whichever dialog is on top.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (incomingRiddle) closeRiddle();
+      else if (showShareModal) setShowShareModal(false);
+      else if (showProModal) setShowProModal(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [incomingRiddle, showShareModal, showProModal]);
 
   const pushHistory = (entryInput, entryEmojis, pro = isPro) => {
     if (!entryInput || !entryEmojis) return;
@@ -321,9 +423,9 @@ const EmojiTranslator = () => {
       }
       setShowProModal(true);
     } else if (res.status === 429) {
-      setAiError('Daily free AI limit reached — Pro is unlimited ✨');
+      setAiError('Daily free AI limit reached. Pro is unlimited.');
     } else {
-      setAiError('AI is taking a nap 😴 — try again in a moment.');
+      setAiError('AI is taking a nap 😴 Try again in a moment.');
     }
   };
 
@@ -363,36 +465,51 @@ const EmojiTranslator = () => {
   const shareText = (suffix) =>
     isPro ? `${input} → ${emojis}` : `${input} → ${emojis}\n\n${suffix}`;
 
+  // Riddle shares hide the sentence: friends get the emojis and a link to guess.
+  const riddleText = `Can you guess what I said? ${emojis}`;
+  const riddleLink = () => riddleUrl(window.location.origin, { t: input, e: emojis });
+
   const shareToClipboard = async () => {
-    await navigator.clipboard.writeText(shareText(`✨ Translate yours: ${window.location.origin}`));
+    await navigator.clipboard.writeText(
+      shareAs === 'riddle' ? `${riddleText}\n${riddleLink()}` : shareText(`✨ Translate yours: ${window.location.origin}`)
+    );
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const shareToFacebook = () => {
-    const text = encodeURIComponent(shareText('✨ Try it yourself!'));
-    const url = encodeURIComponent(window.location.origin);
+    const text = encodeURIComponent(shareAs === 'riddle' ? riddleText : shareText('✨ Try it yourself!'));
+    const url = encodeURIComponent(shareAs === 'riddle' ? riddleLink() : window.location.origin);
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${text}`, '_blank');
   };
 
+  const shareToReddit = () => {
+    const title = encodeURIComponent((shareAs === 'riddle' ? riddleText : `${input} → ${emojis}`).slice(0, 300));
+    const url = encodeURIComponent(shareAs === 'riddle' ? riddleLink() : window.location.origin);
+    window.open(`https://www.reddit.com/submit?url=${url}&title=${title}`, '_blank');
+  };
+
   const shareToTwitter = () => {
-    const text = encodeURIComponent(shareText('✨ Try the Emoji Translator!'));
-    const url = encodeURIComponent(window.location.origin);
+    const text = encodeURIComponent(shareAs === 'riddle' ? riddleText : shareText('✨ Try the Emoji Translator!'));
+    const url = encodeURIComponent(shareAs === 'riddle' ? riddleLink() : window.location.origin);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
   };
 
   const shareToWhatsApp = () => {
-    const text = encodeURIComponent(shareText(`✨ Translate yours: ${window.location.origin}`));
+    const text = encodeURIComponent(
+      shareAs === 'riddle' ? `${riddleText}\n${riddleLink()}` : shareText(`✨ Translate yours: ${window.location.origin}`)
+    );
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
   const handleNativeShare = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({
-          text: shareText(`✨ Try it: ${window.location.origin}`),
-          title: '✨ Emoji Translator'
-        });
+        await navigator.share(
+          shareAs === 'riddle'
+            ? { text: riddleText, url: riddleLink(), title: 'EMOJIFY riddle' }
+            : { text: shareText(`✨ Try it: ${window.location.origin}`), title: 'EMOJIFY' }
+        );
         setShowShareModal(false);
       } catch (err) {
         // User cancelled
@@ -400,8 +517,8 @@ const EmojiTranslator = () => {
     }
   };
 
-  const handleDownloadCard = () => {
-    downloadShareCard(generateShareCard({ input, emojis, watermark: !isPro }));
+  const handleDownloadCard = async () => {
+    downloadShareCard(await generateShareCard({ input, emojis, watermark: !isPro, riddle: shareAs === 'riddle' }));
   };
 
   const handleShuffle = async () => {
@@ -415,339 +532,407 @@ const EmojiTranslator = () => {
     pushHistory(input, result);
   };
 
+  const hasInput = !!input.trim();
+  const posterText = hasInput ? input : demoText;
+  const posterEmojis = hasInput ? emojis : demoEmojis;
+  const proMode = PRO_MODES.find((m) => m.id === mode);
+  const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
+
   return (
-    <div className={`min-h-screen transition-colors duration-300 relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-red-900 via-red-700 to-orange-900' : 'bg-gradient-to-br from-red-100 via-orange-100 to-red-200'}`}>
-      {/* Animated fire particles background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute animate-float"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 3}s`,
-              animationDuration: `${3 + Math.random() * 4}s`,
-            }}
-          >
-            <span className="text-4xl opacity-20">🔥</span>
-          </div>
-        ))}
-      </div>
-      
-      <div className="max-w-4xl mx-auto px-6 py-12 relative z-10">
-        <button
-          onClick={() => setIsDark(!isDark)}
-          className={`fixed top-6 right-6 p-3 rounded-full transition-all duration-300 transform hover:scale-110 shadow-lg z-20 ${isDark ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-red-900 hover:from-yellow-500 hover:to-orange-600' : 'bg-gradient-to-br from-red-700 to-red-900 text-yellow-200 hover:from-red-800 hover:to-red-950'}`}
-        >
-          {isDark ? '☀️' : '🌙'}
-        </button>
-
-        {!isPro && (
-          <button
-            onClick={() => setShowProModal(true)}
-            className="fixed top-6 right-20 px-4 py-3 rounded-full font-bold transition-all duration-300 transform hover:scale-110 shadow-lg z-20 bg-gradient-to-r from-orange-500 to-pink-500 text-white"
-          >
-            ✨ Go Pro
-          </button>
-        )}
-
-        <div className="text-center mb-12">
-          <h1 className={`text-6xl font-black mb-2 drop-shadow-lg ${isDark ? 'text-yellow-200' : 'text-red-900'}`}>
-            <span className="inline-block animate-fire">🔥</span> EMOJIFY
-            {isPro && (
-              <span className="align-middle ml-3 px-3 py-1 rounded-full text-lg font-black bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-lg">
-                PRO
-              </span>
-            )}
-          </h1>
-          <h2 className={`text-4xl font-bold mb-4 ${isDark ? 'text-orange-200' : 'text-red-800'}`}>
-            Emoji Translator
-          </h2>
-          <p className={`text-xl font-semibold ${isDark ? 'text-orange-200' : 'text-red-800'}`}>
-            Turn text into emoji vibes. Fun first. Accuracy never.
+    <>
+      <header className="nav">
+        <div className="container nav__in">
+          <p className="wordmark">
+            Emojify
+            {isPro && <span className="tag">Pro</span>}
           </p>
+          <div className="nav__actions">
+            <a className="nav__link" href="#daily">
+              Daily
+            </a>
+            {!isPro && (
+              <button type="button" className="btn" onClick={() => setShowProModal(true)}>
+                Go Pro
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn icon-btn"
+              onClick={() => setIsDark(!isDark)}
+              aria-label={isDark ? 'Switch to the kraft board' : 'Switch to the black wall'}
+              aria-pressed={isDark}
+            >
+              {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+            </button>
+          </div>
         </div>
+      </header>
 
-        <div className="space-y-6">
-          <div>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type something... like 'I am late for the meeting again'"
-              className={`w-full h-32 text-2xl p-6 rounded-3xl transition-all duration-300 focus:outline-none focus:ring-4 ${
-                isDark 
-                  ? 'bg-white/15 text-yellow-50 placeholder-yellow-200/50 focus:ring-orange-400/60 backdrop-blur-lg border-2 border-orange-500/30' 
-                  : 'bg-white/90 text-red-900 placeholder-red-400 focus:ring-red-400 shadow-2xl border-2 border-red-300'
-              }`}
-            />
-          </div>
-
-          <div className="flex gap-3 flex-wrap">
-            {['vibe', 'literal', 'chaos', 'minimal'].map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`px-6 py-3 rounded-full font-bold transition-all duration-300 transform hover:scale-110 ${
-                  mode === m
-                    ? isDark
-                      ? 'bg-gradient-to-r from-orange-500 via-red-500 to-red-600 text-white shadow-2xl scale-105 ring-2 ring-yellow-400'
-                      : 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-2xl scale-105 ring-2 ring-red-300'
-                    : isDark
-                      ? 'bg-white/20 text-yellow-100 hover:bg-white/30 backdrop-blur-sm'
-                      : 'bg-white/80 text-red-700 hover:bg-white shadow-lg'
-                }`}
-              >
-                {m === 'vibe' && <Sparkles className="inline w-4 h-4 mr-2" />}
-                {m}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex gap-3 flex-wrap items-center">
-            {PRO_MODES.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => (isPro ? setMode(m.id) : setShowProModal(true))}
-                className={`px-5 py-3 rounded-full font-bold transition-all duration-300 transform hover:scale-110 ${
-                  mode === m.id
-                    ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white shadow-2xl scale-105 ring-2 ring-pink-300'
-                    : isDark
-                      ? 'bg-white/10 text-pink-100 hover:bg-white/20 backdrop-blur-sm border border-pink-400/40'
-                      : 'bg-white/70 text-purple-700 hover:bg-white shadow-lg border border-purple-200'
-                }`}
-              >
-                {m.icon} {m.label}
-                {!isPro && <Lock className="inline w-3.5 h-3.5 ml-2 -mt-0.5 opacity-70" />}
-              </button>
-            ))}
-          </div>
-
-          {input.trim() && (
-            <div className="space-y-2">
-              <button
-                onClick={handleAiTranslate}
-                disabled={aiLoading}
-                className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-2xl text-lg font-black transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-70 disabled:hover:scale-100 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white shadow-2xl"
-              >
-                {aiLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Consulting the emoji gods…
-                  </>
-                ) : !isPro && aiUsesLeft <= 0 ? (
-                  <>
-                    <Lock className="w-5 h-5" />
-                    Unlock unlimited AI — $4.90 once
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    AI Translate
-                    {!isPro && (
-                      <span className="text-sm font-bold opacity-90">· {aiUsesLeft} free left</span>
-                    )}
-                  </>
-                )}
-              </button>
-              {aiError && (
-                <p className={`text-center text-sm font-semibold ${isDark ? 'text-yellow-200' : 'text-red-700'}`}>
-                  {aiError}
-                </p>
-              )}
-              {PRO_MODE_IDS.includes(mode) && !isAiResult && (
-                <p className={`text-center text-sm font-medium ${isDark ? 'text-orange-200/80' : 'text-red-700/80'}`}>
-                  {PRO_MODES.find((m) => m.id === mode)?.icon} personality modes are AI-powered — hit the button above
-                </p>
-              )}
+      <main>
+        <section className="hero" aria-labelledby="hero-h">
+          <div className="container hero__grid">
+            <div className="hero__text">
+            <div className="hero__head">
+              <h1 id="hero-h">
+                Fun first.
+                <br />
+                Accuracy never.
+              </h1>
+              <p className="lead">Type any sentence and get it back in emoji. Badly.</p>
             </div>
-          )}
 
-          {emojis && (
-            <div className={`p-8 rounded-3xl transition-all duration-500 transform hover:scale-[1.02] ${
-              isDark 
-                ? 'bg-white/15 backdrop-blur-lg border-2 border-orange-500/40 shadow-2xl shadow-red-900/50' 
-                : 'bg-white/95 shadow-2xl border-2 border-red-200'
-            }`}>
-              {isAiResult && (
-                <div className={`inline-flex items-center gap-1 mb-3 px-3 py-1 rounded-full text-xs font-bold ${isDark ? 'bg-purple-500/30 text-purple-200' : 'bg-purple-100 text-purple-700'}`}>
-                  <Sparkles className="w-3 h-3" /> AI translation
+            <div className="hero__input">
+              <label className="visually-hidden" htmlFor="compose">
+                Your sentence
+              </label>
+              <textarea
+                id="compose"
+                ref={inputRef}
+                name="sentence"
+                className="compose"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type something, like “I am late for the meeting again”"
+                rows={3}
+                maxLength={500}
+              />
+
+              {input.trim() && (
+                <div className="ai">
+                  <button
+                    type="button"
+                    onClick={handleAiTranslate}
+                    disabled={aiLoading}
+                    aria-busy={aiLoading}
+                    className="btn btn--primary"
+                  >
+                    {aiLoading ? (
+                      <>
+                        <Loader2 className="spin keep-motion" aria-hidden="true" />
+                        Consulting the emoji gods…
+                      </>
+                    ) : !isPro && aiUsesLeft <= 0 ? (
+                      <>
+                        <Lock aria-hidden="true" />
+                        Unlimited AI, {PRO_PRICE} once
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles aria-hidden="true" />
+                        AI translate
+                        {!isPro && <span className="btn__note">({aiUsesLeft} free left)</span>}
+                      </>
+                    )}
+                  </button>
+                  {aiError && <p className="ai__msg" role="status">{aiError}</p>}
+                  {proMode && !isAiResult && (
+                    <p className="ai__msg">{proMode.name} runs on AI. Hit AI translate to hear it.</p>
+                  )}
                 </div>
               )}
-              <div className="text-7xl mb-6 leading-relaxed break-all animate-[slideIn_0.5s_ease-out]">
-                {emojis}
-              </div>
-              
-              <div className="flex gap-3 flex-wrap">
-                <button
-                  onClick={handleCopy}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all duration-300 transform hover:scale-110 ${
-                    isDark 
-                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg' 
-                      : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg'
-                  }`}
-                >
-                  <Copy className="w-4 h-4" />
-                  {copied ? 'Copied!' : 'Copy'}
-                </button>
-                
-                <button
-                  onClick={handleShare}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all duration-300 transform hover:scale-110 ${
-                    isDark 
-                      ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg' 
-                      : 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg'
-                  }`}
-                >
-                  <Share2 className="w-4 h-4" />
-                  Share
-                </button>
-                
-                <button
-                  onClick={handleShuffle}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all duration-300 transform hover:scale-110 ${
-                    isDark 
-                      ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg' 
-                      : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg'
-                  }`}
-                >
-                  <Shuffle className="w-4 h-4" />
-                  Shuffle
-                </button>
-              </div>
             </div>
-          )}
 
-          {history.length > 0 && (
-            <div className={`p-6 rounded-3xl border-2 ${isDark ? 'bg-white/10 backdrop-blur-lg border-orange-500/30' : 'bg-white/90 shadow-xl border-red-200'}`}>
-              <h3 className={`text-xl font-bold mb-4 ${isDark ? 'text-yellow-200' : 'text-red-900'}`}>
-                Recent Translations {isPro && <span className="text-sm font-semibold opacity-70">· saved forever ✨</span>}
-              </h3>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {history.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-4 rounded-2xl transition-all hover:scale-[1.02] ${isDark ? 'bg-white/10 hover:bg-white/15' : 'bg-white/70 hover:bg-white'}`}
-                  >
-                    <div className={`text-sm mb-2 font-medium ${isDark ? 'text-orange-200' : 'text-red-700'}`}>
-                      {item.input}
-                    </div>
-                    <div className="text-3xl">{item.emojis}</div>
+            <div className="hero__slips" role="group" aria-labelledby="slips-label">
+              <span className="hero__slips-label" id="slips-label">
+                Or try one:
+              </span>
+              {STARTERS.filter((s) => s !== demoText).map((s) => (
+                <button key={s} type="button" className="slip" onClick={() => setInput(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            </div>
+
+            <div className="stage">
+              <figure className="sheet sheet--fluoro poster">
+                {hasInput && isAiResult && (
+                  <span className="poster__status" role="status">
+                    <Sparkles aria-hidden="true" /> AI translation
+                  </span>
+                )}
+                <p className="poster__said" style={{ '--said-size': saidSizeFor(posterText) }}>
+                  {posterText}
+                </p>
+                <p className="poster__emojis emoji">{posterEmojis}</p>
+                {hasInput && emojis ? (
+                  <div className="poster__foot">
+                    <button type="button" className="btn" onClick={handleCopy}>
+                      <Copy aria-hidden="true" />
+                      {copied ? 'Copied' : 'Copy'}
+                    </button>
+                    <button type="button" className="btn" onClick={handleShare}>
+                      <Share2 aria-hidden="true" />
+                      Share
+                    </button>
+                    <button type="button" className="btn" onClick={handleShuffle}>
+                      <Shuffle aria-hidden="true" />
+                      Shuffle
+                    </button>
                   </div>
+                ) : (
+                  <figcaption className="poster__foot poster__note">
+                    {hasInput ? 'Nothing yet. Hit AI translate.' : 'Example. Start typing and this flyer becomes yours.'}
+                  </figcaption>
+                )}
+              </figure>
+
+            <div className="hero__modes">
+              <fieldset className="modes">
+                <legend>Mode</legend>
+                {['vibe', 'literal', 'chaos', 'minimal'].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className="chip"
+                    aria-pressed={mode === m}
+                  >
+                    {m}
+                  </button>
                 ))}
+              </fieldset>
+
+              <fieldset className="modes">
+                <legend>{isPro ? 'Pro voices' : 'Pro voices, AI only'}</legend>
+                {PRO_MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => (isPro ? setMode(m.id) : setShowProModal(true))}
+                    className="chip"
+                    aria-pressed={mode === m.id}
+                  >
+                    {m.label}
+                    {!isPro && <Lock aria-label="Pro" />}
+                  </button>
+                ))}
+              </fieldset>
+            </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="daily-band" id="daily" aria-labelledby="daily-h">
+          <div className="container">
+            <div className="sec__head">
+              <h2 id="daily-h">Can you solve today’s?</h2>
+              <p className="lead">
+                One movie or song a day, told in emoji. Five guesses, the same puzzle for everyone, a new one at
+                midnight.
+              </p>
+            </div>
+            <DailyPuzzle />
+          </div>
+        </section>
+
+        {history.length > 0 && (
+          <section className="sec" aria-labelledby="history-h">
+            <div className="container">
+              <div className="sec__head">
+                <h2 id="history-h">What did you say earlier?</h2>
+                {isPro && <p className="lead">Saved on this device.</p>}
+              </div>
+              <ol className="ledger sheet" tabIndex={0} aria-label="Your translations">
+                {history.map((item, idx) => (
+                  <li key={idx}>
+                    <span className="ledger__said">{item.input}</span>
+                    <span className="ledger__emojis emoji">{item.emojis}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+        )}
+
+        <section className="sec" id="riddle" aria-labelledby="riddle-h">
+          <div className="container split">
+            <div className="split__text">
+              <h2 id="riddle-h">Can your friends guess it?</h2>
+              <p className="lead">
+                Send any translation as a riddle. They see only the emojis, take a guess, then find out what you
+                really said.
+              </p>
+            </div>
+            <div className="sheet riddle-sheet">
+              <h3>Try this one</h3>
+              {sampleRiddle?.e && (
+                <RiddleSheet emojis={sampleRiddle.e} answer={sampleRiddle.t} idPrefix="sample">
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={() => inputRef.current?.focus()}
+                  >
+                    Make one for your friends
+                  </button>
+                </RiddleSheet>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="sec" id="pro" aria-labelledby="pro-h">
+          <div className="container">
+            <div className="sec__head">
+              <h2 id="pro-h">Want it to roast you properly?</h2>
+              <p className="lead">Pro is one payment. No subscription, no account.</p>
+            </div>
+            <div className="wall">
+              <div className="sheet sheet--fluoro wall__price">
+                <p className="flyer">{PRO_PRICE}</p>
+                <p className="flyer-sub">Once. Yours forever, refundable for 7 days.</p>
+              </div>
+              <div className="sheet wall__voices">
+                <p className="flyer flyer--m">Five voices</p>
+                <ul className="voices">
+                  {PRO_MODES.map((m) => (
+                    <li key={m.id}>{m.name}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="sheet wall__ai">
+                <p className="flyer flyer--m">Unlimited AI</p>
+                <p>In every mode, as often as you like.</p>
+              </div>
+              <div className="sheet wall__clean">
+                <p className="flyer flyer--m">No watermark</p>
+                <p>On every share card.</p>
+              </div>
+              <div className="wall__cta">
+                {isPro ? (
+                  <p className="lead">You have Pro on this device. Go roast someone.</p>
+                ) : (
+                  <button type="button" className="btn btn--primary btn--block" onClick={() => setShowProModal(true)}>
+                    Go Pro
+                  </button>
+                )}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        </section>
 
-        <div className={`mt-12 text-center text-sm font-medium ${isDark ? 'text-orange-200/80' : 'text-red-800/80'}`}>
-          Made with chaos & vibes. No accuracy guaranteed. 🎲✨🔥
-        </div>
-      </div>
+        <section className="band" aria-labelledby="accuracy-h">
+          <div className="container band__in">
+            <h2 id="accuracy-h">Is any of this accurate?</h2>
+            <p className="band__answer">Not even a little.</p>
+          </div>
+        </section>
+      </main>
 
-      {/* Share Modal */}
+      <footer className="foot">
+        <div className="container foot__in">
+          <p className="foot__sign">Made with chaos and vibes.</p>
+          <div className="foot__meta">
+            <p>Emojify, {new Date().getFullYear()}</p>
+            <nav className="foot__links" aria-label="Footer">
+              <a href="#daily">Today’s puzzle</a>
+              <a href="#riddle">Make a riddle</a>
+              <a href="#pro">Pro</a>
+            </nav>
+          </div>
+        </div>
+      </footer>
+
+      {/* Share dialog */}
       {showShareModal && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowShareModal(false)}
-        >
-          <div 
-            className={`max-w-md w-full rounded-3xl p-8 shadow-2xl transform transition-all ${
-              isDark ? 'bg-gradient-to-br from-purple-900/90 to-indigo-900/90' : 'bg-gradient-to-br from-orange-100 to-pink-100'
-            }`}
+        <div className="backdrop" onClick={() => setShowShareModal(false)}>
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="share-h"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Preview Card */}
-            <div className={`mb-6 p-6 rounded-2xl ${isDark ? 'bg-white/10' : 'bg-white'}`}>
-              <div className={`text-sm font-medium mb-3 ${isDark ? 'text-orange-300' : 'text-red-700'}`}>
-                {input}
-              </div>
-              <div className="text-4xl mb-3">{emojis}</div>
-              <div className={`text-xs ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>
-                ✨ Emoji Translator
-              </div>
+            <div className="dialog__preview">
+              {shareAs === 'riddle' ? (
+                <p className="dialog__preview-said">Can you guess what I said?</p>
+              ) : (
+                <p className="dialog__preview-said">{input}</p>
+              )}
+              <p className="dialog__preview-emojis emoji">{emojis}</p>
             </div>
 
-            <h3 className={`text-xl font-bold mb-4 text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Share your translation! 🎉
-            </h3>
-
-            {/* Social Buttons */}
-            <div className="space-y-3 mb-4">
+            <div className="dialog__body">
+              <h2 id="share-h">Share it</h2>
               <button
-                onClick={shareToFacebook}
-                className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold transition-all hover:scale-105 bg-[#1877F2] text-white"
+                type="button"
+                className="btn icon-btn dialog__close"
+                onClick={() => setShowShareModal(false)}
+                aria-label="Close"
+                autoFocus
               >
-                <span className="text-xl">📘</span>
-                Share to Facebook
+                <X aria-hidden="true" />
               </button>
 
-              <button
-                onClick={shareToTwitter}
-                className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold transition-all hover:scale-105 bg-[#1DA1F2] text-white"
-              >
-                <span className="text-xl">🐦</span>
-                Share to Twitter
-              </button>
+              <fieldset className="seg">
+                <legend>Send it as</legend>
+                <input
+                  type="radio"
+                  name="share-as"
+                  id="share-riddle"
+                  value="riddle"
+                  checked={shareAs === 'riddle'}
+                  onChange={() => setShareAs('riddle')}
+                />
+                <label htmlFor="share-riddle">A riddle</label>
+                <input
+                  type="radio"
+                  name="share-as"
+                  id="share-answer"
+                  value="answer"
+                  checked={shareAs === 'answer'}
+                  onChange={() => setShareAs('answer')}
+                />
+                <label htmlFor="share-answer">With the answer</label>
+              </fieldset>
 
-              <button
-                onClick={shareToWhatsApp}
-                className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold transition-all hover:scale-105 bg-[#25D366] text-white"
-              >
-                <span className="text-xl">💬</span>
-                Share to WhatsApp
-              </button>
+              <div className="grid-2">
+                <button type="button" className="btn" onClick={shareToFacebook}>
+                  Facebook
+                </button>
+                <button type="button" className="btn" onClick={shareToReddit}>
+                  Reddit
+                </button>
+                <button type="button" className="btn" onClick={shareToWhatsApp}>
+                  WhatsApp
+                </button>
+                <button type="button" className="btn" onClick={shareToTwitter}>
+                  X
+                </button>
+              </div>
 
-              <button
-                onClick={shareToClipboard}
-                className={`w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold transition-all hover:scale-105 ${
-                  isDark ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-purple-500 to-pink-500'
-                } text-white`}
-              >
-                <Copy className="w-5 h-5" />
-                {copied ? 'Copied!' : 'Copy to Clipboard'}
-              </button>
+              <div className="stack">
+                <button type="button" className="btn btn--primary btn--block" onClick={shareToClipboard}>
+                  <Copy aria-hidden="true" />
+                  {copied ? 'Copied' : shareAs === 'riddle' ? 'Copy riddle link' : 'Copy text'}
+                </button>
+                <button type="button" className="btn btn--block" onClick={handleDownloadCard}>
+                  <Download aria-hidden="true" />
+                  {isPro ? 'Download card' : 'Download card (watermarked)'}
+                </button>
+                {canNativeShare && (
+                  <button type="button" className="btn btn--block" onClick={handleNativeShare}>
+                    <Share2 aria-hidden="true" />
+                    More options
+                  </button>
+                )}
+              </div>
 
-              <button
-                onClick={handleDownloadCard}
-                className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold transition-all hover:scale-105 bg-gradient-to-r from-indigo-500 to-purple-600 text-white"
-              >
-                <Download className="w-5 h-5" />
-                Download Card {!isPro && '(with watermark)'}
-              </button>
               {!isPro && (
-                <button
-                  onClick={() => {
-                    setShowShareModal(false);
-                    setShowProModal(true);
-                  }}
-                  className={`w-full text-center text-xs font-semibold ${isDark ? 'text-purple-300 hover:text-purple-200' : 'text-purple-600 hover:text-purple-800'}`}
-                >
-                  ✨ Remove watermark with Pro
-                </button>
-              )}
-
-              {navigator.share && (
-                <button
-                  onClick={handleNativeShare}
-                  className={`w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold transition-all hover:scale-105 ${
-                    isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'
-                  } ${isDark ? 'text-white' : 'text-gray-900'}`}
-                >
-                  <Share2 className="w-5 h-5" />
-                  More Options
-                </button>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowShareModal(false);
+                      setShowProModal(true);
+                    }}
+                    className="link"
+                  >
+                    Remove the watermark with Pro
+                  </button>
+                </div>
               )}
             </div>
-
-            <button
-              onClick={() => setShowShareModal(false)}
-              className={`w-full py-3 rounded-xl font-medium ${
-                isDark ? 'text-white/70 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}
@@ -756,124 +941,88 @@ const EmojiTranslator = () => {
         <ProModal isDark={isDark} onClose={() => setShowProModal(false)} onActivated={handleProActivated} />
       )}
 
-      {purchasedKey && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      {/* A riddle someone sent */}
+      {incomingRiddle && (
+        <div className="backdrop" onClick={closeRiddle}>
           <div
-            className={`max-w-md w-full rounded-3xl p-8 shadow-2xl text-center ${
-              isDark ? 'bg-gradient-to-br from-purple-900/95 to-indigo-900/95 text-white' : 'bg-gradient-to-br from-orange-100 to-pink-100 text-gray-900'
-            }`}
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="incoming-h"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-5xl mb-3">🎉</div>
-            <h3 className="text-2xl font-black mb-2">You're Pro now!</h3>
-            <p className={`text-sm font-medium mb-4 ${isDark ? 'text-purple-200' : 'text-gray-700'}`}>
-              This is your license key — <strong>save it</strong> to unlock Pro on your other devices:
-            </p>
-            <div className={`p-3 rounded-xl font-mono text-sm break-all mb-4 ${isDark ? 'bg-black/30' : 'bg-white'}`}>
-              {purchasedKey}
+            <h2 id="incoming-h">Can you guess it?</h2>
+            <button
+              type="button"
+              className="btn icon-btn dialog__close"
+              onClick={closeRiddle}
+              aria-label="Close"
+            >
+              <X aria-hidden="true" />
+            </button>
+            <p className="dialog__lead">Someone sent you this in emoji.</p>
+            <div className="dialog__body">
+              <RiddleSheet emojis={incomingRiddle.e} answer={incomingRiddle.t} idPrefix="incoming">
+                <button type="button" className="btn btn--primary" onClick={makeYourOwn}>
+                  Make one back
+                </button>
+              </RiddleSheet>
             </div>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(purchasedKey);
-                setPurchasedKeyCopied(true);
-                setTimeout(() => setPurchasedKeyCopied(false), 2000);
-              }}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:scale-105 transition-all mb-3"
-            >
-              <Copy className="w-4 h-4" />
-              {purchasedKeyCopied ? 'Copied!' : 'Copy key'}
-            </button>
-            <button
-              onClick={() => setPurchasedKey('')}
-              className={`w-full py-2 rounded-xl font-medium ${isDark ? 'text-white/70 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Start translating ✨
-            </button>
+          </div>
+        </div>
+      )}
+
+      {purchasedKey && (
+        <div className="backdrop">
+          <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="bought-h">
+            <h2 id="bought-h">You’re Pro now</h2>
+            <p className="dialog__lead">This is your license key. Save it to use Pro on your other devices.</p>
+            <div className="dialog__body">
+              <p className="dialog__key">{purchasedKey}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(purchasedKey);
+                  setPurchasedKeyCopied(true);
+                  setTimeout(() => setPurchasedKeyCopied(false), 2000);
+                }}
+                className="btn btn--primary btn--block"
+              >
+                <Copy aria-hidden="true" />
+                {purchasedKeyCopied ? 'Copied' : 'Copy key'}
+              </button>
+              <button type="button" onClick={() => setPurchasedKey('')} className="btn btn--block">
+                Start translating
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {showUpsellToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md">
-          <div className={`flex items-center gap-3 p-4 rounded-2xl shadow-2xl ${isDark ? 'bg-gradient-to-r from-purple-900 to-indigo-900 text-white' : 'bg-white text-gray-900 border border-purple-200'}`}>
-            <span className="text-2xl">✨</span>
-            <p className="flex-1 text-sm font-semibold">
-              AI makes these 10× better — you have {aiUsesLeft} free tries!
-            </p>
-            <button
-              onClick={() => {
-                setShowUpsellToast(false);
-                handleAiTranslate();
-              }}
-              className="px-4 py-2 rounded-xl font-bold text-sm bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:scale-105 transition-all"
-            >
-              Try AI
-            </button>
-            <button
-              onClick={() => setShowUpsellToast(false)}
-              className={`text-xl leading-none px-1 ${isDark ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-gray-700'}`}
-            >
-              ×
-            </button>
-          </div>
+        <div className="toast" role="status">
+          <p>AI translations are way funnier. You have {aiUsesLeft} free tries.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setShowUpsellToast(false);
+              handleAiTranslate();
+            }}
+            className="btn btn--primary"
+          >
+            Try AI
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowUpsellToast(false)}
+            className="btn icon-btn"
+            aria-label="Dismiss"
+          >
+            <X aria-hidden="true" />
+          </button>
         </div>
       )}
-
-      <style jsx>{`
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateX(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0) translateX(0) rotate(0deg);
-            opacity: 0.2;
-          }
-          25% {
-            transform: translateY(-20px) translateX(10px) rotate(5deg);
-            opacity: 0.4;
-          }
-          50% {
-            transform: translateY(-40px) translateX(-10px) rotate(-5deg);
-            opacity: 0.3;
-          }
-          75% {
-            transform: translateY(-20px) translateX(5px) rotate(3deg);
-            opacity: 0.35;
-          }
-        }
-        @keyframes fire {
-          0%, 100% {
-            transform: scale(1) rotate(-2deg);
-            filter: brightness(1);
-          }
-          25% {
-            transform: scale(1.1) rotate(2deg);
-            filter: brightness(1.2);
-          }
-          50% {
-            transform: scale(1.05) rotate(-1deg);
-            filter: brightness(1.1);
-          }
-          75% {
-            transform: scale(1.15) rotate(1deg);
-            filter: brightness(1.3);
-          }
-        }
-        .animate-float {
-          animation: float 4s ease-in-out infinite;
-        }
-        .animate-fire {
-          animation: fire 0.5s ease-in-out infinite;
-          display: inline-block;
-        }
-      `}</style>
-    </div>
+    </>
   );
 };
 

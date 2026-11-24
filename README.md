@@ -22,15 +22,21 @@ A playful web app that translates your text into emojis using AI or smart word m
   - **Chaos**: Random fun mix (8-15 emojis)
   - **Minimal**: Exactly 3 emojis that capture the essence
 - 🤖 **5 free AI translations** to taste the good stuff
-- 🌓 **Dark/Light Theme**, 📋 **Copy & Share**, 🔄 **Shuffle**, 📜 last-5 history
-- 🖼️ **Share cards** (with a small watermark)
+- 📅 **EMOJIFY Daily**: one movie or song a day in emoji, the same for everyone, five guesses, a hint after each miss (first letters, then a clue), local streaks, and a spoiler-free result to paste into groups (`EMOJIFY Daily #12 🎬 🟥🟨🟩 3/5`). Answers live server-side in `functions/api/_daily-puzzles.js` (60 puzzles; set `DAILY_EPOCH` to your launch day, add more at the end) and are checked by `functions/api/daily.js`
+- 🌶️ **Cheeky words** (`src/data/spicyEmojis.js`): PG-13 swearing and toilet humour (💩 🍑 🤬), exact match only, so fuzzy spelling never turns an innocent word crude
+- 🧩 **Emoji riddles**: share any translation as a link that shows only the emojis; friends guess, get scored ("3 of 5 words"), see the answer, and are one tap from making their own. Riddle links get their own link preview on Facebook, Reddit, WhatsApp and X ("Can you guess what this says? 🐱☕📱"), rewritten server-side by `functions/index.js`
+- 👆 **One-tap starters** and a live example flyer, so the first screen is never empty
+- 🌓 **Kraft / black-wall themes** (remembered per device), 📋 **Copy & Share** (Facebook, Reddit, WhatsApp, X), 🔄 **Shuffle**, 📜 last-5 history
+- 🖼️ **Share cards** drawn as a flyer, as a riddle or with the answer (small watermark); on phones they go straight to the share sheet
 - 📱 **Responsive**: Works on mobile and desktop
 
 **Pro — $4.90 once (no subscription)**
 - ✨ **Unlimited AI translations** in every mode (gpt-4o-mini, context-aware)
 - 🔥 **Personality modes**: Roast, Gen Z 💅, Flirty 😏, Passive-Aggressive 🙂, Emoji Story 📖
 - 🖼️ **Clean share cards** — no watermark
-- 📜 **Unlimited saved history**
+- 📜 **Last 200 translations saved** on the device
+
+The look is Hallmark's Paste-up theme: plain CSS on tokens in `src/tokens.css` (Tailwind is no longer used). Link-preview image: `public/og.png`.
 
 No accounts — buyers get a license key by email and paste it in once. See [SETUP-MONETIZATION.md](./SETUP-MONETIZATION.md) for how to go live.
 

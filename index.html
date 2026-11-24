@@ -2,14 +2,47 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Turn text into emoji vibes. Fun first. Accuracy never." />
-    <title>✨ Emoji Translator</title>
+    <title>EMOJIFY, the emoji translator</title>
+    <meta name="description" content="Type any sentence and get it back in emoji, or solve the daily emoji puzzle: one movie or song a day, five guesses. Fun first, accuracy never." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://emojify.co/" />
+
+    <!-- Link previews (Facebook, Reddit, WhatsApp, X). Riddle links get their own title from functions/index.js. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="EMOJIFY" />
+    <meta property="og:url" content="https://emojify.co/" />
+    <meta property="og:title" content="Turn any sentence into emoji (badly)" />
+    <meta property="og:description" content="Fun first. Accuracy never. A daily emoji puzzle (movies and songs), Roast mode, and riddles your friends have to guess." />
+    <meta property="og:image" content="https://emojify.co/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A fluorescent flyer reading “I spent my whole paycheck on shoes” translated into emoji, with a whale for whole." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Turn any sentence into emoji (badly)" />
+    <meta name="twitter:description" content="Fun first. Accuracy never. A daily emoji puzzle (movies and songs), Roast mode, and riddles your friends have to guess." />
+    <meta name="twitter:image" content="https://emojify.co/og.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=League+Gothic&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet" />
+
+    <!-- Light kraft board or black wall, set before first paint so the page never flashes the wrong one. -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem('emojify_mode');
+          if (!m && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) m = 'dark';
+          document.documentElement.dataset.mode = m === 'dark' ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
     <script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>EMOJIFY needs JavaScript to turn your sentences into emoji.</noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

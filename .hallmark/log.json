@@ -1,0 +1,30 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "page",
+  "shape": "Conversational FAQ",
+  "theme": "pasteup",
+  "axes": "mid/display-condensed/chromatic-yellow",
+  "hero": "Counter",
+  "nav": "slab",
+  "footer": "letter close",
+  "imagery": "the product, live",
+  "photos": [],
+  "entry": "none",
+  "fingerprint": "faq/counter/slab/letter/pasteup/product",
+  "sections": [
+   "hero: translator + live flyer",
+   "history: typed sheet (conditional)",
+   "riddle: split with a working guess",
+   "pro: wall of flyers",
+   "accuracy: toner band statement",
+   "footer: letter close"
+  ],
+  "signature": "your sentence pasted up as a fluorescent flyer, rewritten as you type",
+  "waived": [],
+  "draw": "69a45a",
+  "prompt": "emoji translator toy: type a sentence, get a funny emoji translation in roast, gen z or flirty voice, share it to Facebook groups and Reddit",
+  "date": "2026-11-23"
+ }
+]

@@ -1,0 +1,12 @@
+# Cloudflare Pages config for EMOJIFY (project "emojify", https://emojify-efn.pages.dev).
+# Deploy: npm run build && npx wrangler pages deploy dist --project-name emojify --branch main
+# Secrets (OPENAI_API_KEY, STRIPE_SECRET_KEY, LEMONSQUEEZY_*) are set with
+# `npx wrangler pages secret put <NAME> --project-name emojify`, never in this file.
+name = "emojify"
+pages_build_output_dir = "./dist"
+compatibility_date = "2025-09-01"
+
+# License keys minted after Stripe checkout (functions/api/stripe/claim.js).
+[[kv_namespaces]]
+binding = "LICENSES"
+id = "18cf99c2d0af460794db0cd8ea108904"

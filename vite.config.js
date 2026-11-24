@@ -7,6 +7,11 @@ export default defineConfig({
     fs: {
       strict: false,
     },
+    // /api lives in Cloudflare Pages Functions. For the full app in dev, run
+    // `npm run build && npx wrangler pages dev dist --port 8788` alongside `npm run dev`.
+    proxy: {
+      '/api': 'http://127.0.0.1:8788',
+    },
   },
   build: {
     target: 'esnext',

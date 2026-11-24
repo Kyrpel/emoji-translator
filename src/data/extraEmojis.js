@@ -405,4 +405,23 @@ export const extraEmojis = {
   gravity: ['🍎', '⬇️', '🌍'],
   tide: ['🌊', '🌙', '🏄'],
   breeze: ['🍃', '😌', '🎐'],
+
+  // --- group-chat words (clean, so fuzzy matching may land on them) ---
+  omg: ['😱', '🙀'],
+  lol: ['😂', '🤣'],
+  lmao: ['🤣', '💀'],
+  idk: ['🤷'],
+  yolo: ['🤪', '🎢'],
+  vibe: ['✨', '😌', '🎶'],
+  drunk: ['🥴', '🍻'],
+  wasted: ['🥴', '🍻', '🗑️'],
+  hungover: ['🤢', '🍺', '😵'],
+  tequila: ['🥃', '🌵'],
+  date: ['📅', '💑', '🍷'],
+  dumped: ['💔', '🗑️'],
+  weekend: ['🎉', '😎', '🛋️'],
+  nap: ['😴', '🛌'],
+  lazy: ['🦥', '🛋️'],
+  broke: ['💸', '😭', '🪫'],
+  rich: ['🤑', '💰'],
 };
