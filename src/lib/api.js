@@ -1,65 +1,31 @@
-import { getLicense } from './license.js';
+// Calls to the serverless functions. Same-origin, so no CORS setup needed.
+// Every call resolves (never throws): { ok, status, ...data }.
 
-// Calls the serverless AI proxy. Same-origin, so no CORS setup needed.
-export const aiTranslate = async (text, mode) => {
-  const license = getLicense();
+const call = async (path, options) => {
   try {
-    const res = await fetch('/api/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text,
-        mode,
-        licenseKey: license?.key,
-        instanceId: license?.instanceId,
-      }),
-    });
+    const res = await fetch(path, options);
     const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, emojis: data.emojis, error: data.error };
+    return { ok: res.ok, status: res.status, ...data };
   } catch {
     return { ok: false, status: 0, error: 'network' };
   }
 };
 
-export const activateLicense = async (licenseKey) => {
-  try {
-    const res = await fetch('/api/license/activate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ licenseKey }),
-    });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, instanceId: data.instanceId, error: data.error };
-  } catch {
-    return { ok: false, error: 'network' };
-  }
-};
+const post = (path, body) =>
+  call(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-export const claimStripeSession = async (sessionId) => {
-  try {
-    const res = await fetch('/api/stripe/claim', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId }),
-    });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, licenseKey: data.licenseKey, error: data.error };
-  } catch {
-    return { ok: false, error: 'network' };
-  }
-};
+// The AI turns a sentence into a fill-in-the-blanks riddle → { puzzle }
+export const makeRiddle = (text, style, topic) => post('/api/translate', { text, style, topic });
 
-export const validateLicenseRemote = async (licenseKey, instanceId) => {
-  try {
-    const res = await fetch('/api/license/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ licenseKey, instanceId }),
-    });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, valid: !!data.valid, error: data.error };
-  } catch {
-    // Network failure: don't punish the user — keep current state.
-    return { ok: false, valid: true, error: 'network' };
-  }
-};
+// Store a riddle → { id, owner }
+export const createRiddle = ({ text, puzzle, name, topic }) => post('/api/riddle', { text, puzzle, name, topic });
+
+// → { riddle, state?, answer?, board? }
+export const fetchRiddle = (id, player) =>
+  call(`/api/riddle?id=${encodeURIComponent(id)}&player=${encodeURIComponent(player || '')}`);
+
+// → { verdict, line, state?, answer?, board? }
+export const sendGuess = (body) => post('/api/riddle/guess', body);
+
+// The creator's results → { results: [{ id, players, solved, guesses, board }] }
+export const fetchResults = (items) => post('/api/riddle/results', { items });

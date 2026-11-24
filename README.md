@@ -1,6 +1,6 @@
-# ✨ Emoji Translator
+# ✨ EMOJIFY
 
-Turn any text into emoji vibes. Fun first. Accuracy never. 🎲
+Say it in emoji. See if your friends get it. 🎲 Live at [emojify.co](https://emojify.co).
 
 <!-- Demo GIF -->
 <div align="center">
@@ -11,90 +11,57 @@ Turn any text into emoji vibes. Fun first. Accuracy never. 🎲
 
 ## What is This?
 
-A playful web app that translates your text into emojis using AI or smart word matching. Perfect for adding some emoji flair to your messages!
+A party game. You type something true ("my ex still has my hoodie"), it comes back as a fill-in-the-blanks riddle with the key words swapped for emojis ("My 💔 still has my 👕"), and you send the link to friends. Each friend gets three tries; an AI judges every guess and roasts the wrong ones; you see who got it and every wrong guess. Then they send one back.
+
+Everything is free. There are no accounts: your browser keeps a random player id, your name, and a secret key for each riddle you made (that key unlocks its results).
 
 ## Features
 
-**Free**
-- 🎨 **4 Translation Modes** (instant, runs in your browser):
-  - **Vibe**: Captures the emotion and feeling (8-12 emojis)
-  - **Literal**: One emoji per word
-  - **Chaos**: Random fun mix (8-15 emojis)
-  - **Minimal**: Exactly 3 emojis that capture the essence
-- 🤖 **5 free AI translations** to taste the good stuff
-- 📅 **EMOJIFY Daily**: one movie or song a day in emoji, the same for everyone, five guesses, a hint after each miss (first letters, then a clue), local streaks, and a spoiler-free result to paste into groups (`EMOJIFY Daily #12 🎬 🟥🟨🟩 3/5`). Answers live server-side in `functions/api/_daily-puzzles.js` (60 puzzles; set `DAILY_EPOCH` to your launch day, add more at the end) and are checked by `functions/api/daily.js`
-- 🌶️ **Cheeky words** (`src/data/spicyEmojis.js`): PG-13 swearing and toilet humour (💩 🍑 🤬), exact match only, so fuzzy spelling never turns an innocent word crude
-- 🧩 **Emoji riddles**: share any translation as a link that shows only the emojis; friends guess, get scored ("3 of 5 words"), see the answer, and are one tap from making their own. Riddle links get their own link preview on Facebook, Reddit, WhatsApp and X ("Can you guess what this says? 🐱☕📱"), rewritten server-side by `functions/index.js`
-- 👆 **One-tap starters** and a live example flyer, so the first screen is never empty
-- 🌓 **Kraft / black-wall themes** (remembered per device), 📋 **Copy & Share** (Facebook, Reddit, WhatsApp, X), 🔄 **Shuffle**, 📜 last-5 history
-- 🖼️ **Share cards** drawn as a flyer, as a riddle or with the answer (small watermark); on phones they go straight to the share sheet
-- 📱 **Responsive**: Works on mobile and desktop
+- 🧩 **Fill-in-the-blanks riddles with friends**: the small words and one or two clue words stay, the rest become emojis (`src/lib/riddleText.js` checks that a riddle only shows words from its own sentence, hides at least a third of the key words and keeps at least 30% of the words; the AI gets two tries, then the offline version stands in); topics to start from (my ex, my weekend, my job…), eight styles (classic, hard mode, story, chaos, roast, gen z, flirty, passive-aggressive), a link per riddle (`/?r=id`) whose preview reads "Can you guess what Maria said? 🐱☕💥"
+- ⚖️ **An AI judge**: accepts synonyms and paraphrases ("kitty spilled my latte" counts), writes a one-line reaction to each guess, and never gets to hint at the answer (a reaction that uses a word from the secret is swapped for a canned one)
+- 📬 **Your riddles**: who played, who got it in how many tries, every guess with the judge's line, and a count of new guesses in the nav and the tab title
+- 🔁 **Send one back**: the end of every game puts the player in front of the composer
+- 📅 **EMOJIFY Daily**: one movie or song a day in emoji, the same for everyone, five guesses, a hint after each miss, local streaks, and a spoiler-free result to paste into groups (`EMOJIFY Daily #12 🎬 🟥🟨🟩 3/5`). Answers live server-side in `functions/api/_daily-puzzles.js` (set `DAILY_EPOCH` to your launch day, add more at the end) and are checked by `functions/api/daily.js`
+- ✍️ **A live flyer**: while you type, the dictionary engine (`src/lib/emojify.js`, 1,600+ words, fuzzy spelling, sentiment) rewrites the poster instantly; it also stands in whenever the AI is busy
+- 🌶️ **Cheeky words** (`src/data/spicyEmojis.js`): PG-13, exact match only
+- 🖼️ **Riddle cards** for Stories and group chats, with the riddle's own link on them
+- 🌓 **Kraft / black-wall themes**, responsive from phones up
 
-**Pro — $4.90 once (no subscription)**
-- ✨ **Unlimited AI translations** in every mode (gpt-4o-mini, context-aware)
-- 🔥 **Personality modes**: Roast, Gen Z 💅, Flirty 😏, Passive-Aggressive 🙂, Emoji Story 📖
-- 🖼️ **Clean share cards** — no watermark
-- 📜 **Last 200 translations saved** on the device
-
-The look is Hallmark's Paste-up theme: plain CSS on tokens in `src/tokens.css` (Tailwind is no longer used). Link-preview image: `public/og.png`.
-
-No accounts — buyers get a license key by email and paste it in once. See [SETUP-MONETIZATION.md](./SETUP-MONETIZATION.md) for how to go live.
-
-## How to Use
-
-1. **Type your text** in the text area (e.g., "I am late for the meeting again")
-2. **Choose a mode** (Vibe, Literal, Chaos, or Minimal)
-3. **See your emojis** appear instantly
-4. **Copy, Share, or Shuffle** as needed!
-
-## Installation
-
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Setup the AI Backend (Optional for local dev)
-
-Local translation works with no setup at all. The ✨ AI Translate button and Pro features are served by serverless functions in `functions/api/` — the OpenAI key lives **server-side only** (never in the client bundle).
-
-For local development with the API:
-
-```bash
-# .dev.vars (gitignored)
-OPENAI_API_KEY=sk-...
-LEMONSQUEEZY_STORE_ID=...
-LEMONSQUEEZY_PRODUCT_ID=...
-
-npx wrangler pages dev -- npm run dev
-```
-
-Full deployment + payments walkthrough: [SETUP-MONETIZATION.md](./SETUP-MONETIZATION.md).
-
-### 3. Run the App
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-## Build for Production
-
-```bash
-npm run build
-```
-
-The built files will be in the `dist` folder.
+The look is Hallmark's Paste-up theme: plain CSS on tokens in `src/tokens.css`. Link-preview image: `public/og.png`.
 
 ## How It Works
 
-### Translation Flow
+| Piece | Where |
+| --- | --- |
+| Make a riddle (AI) | `POST /api/translate` → `functions/api/translate.js`, prompts in `functions/api/_shared.js` |
+| Store a riddle | `POST /api/riddle` → Cloudflare D1 (`DB`), schema in `migrations/` |
+| Play | `GET /api/riddle?id&player`, `POST /api/riddle/guess` (3 tries per player, the answer only once they're done) |
+| Judge | `functions/api/_riddle.js`: exact match first, then the same guess judged before, then the AI, then word overlap if the AI is down |
+| Creator's results | `POST /api/riddle/results` with each riddle's owner key |
+| Link previews | `functions/index.js` rewrites the page's meta tags for `/?r=` links |
+| AI provider | `functions/api/_ai.js`: OpenRouter, a chain of three free models (`AI_MODELS` overrides) |
 
-1. **Live typing** always uses the free local engine: verbs/nouns/adjectives extracted with NLP, matched against a 1000+ word emoji database, fuzzy search for typos, sentiment analysis for mood emojis.
-2. **✨ AI Translate** (explicit button) calls `POST /api/translate`, a serverless function that proxies OpenAI gpt-4o-mini with a mode-specific prompt. Free users get 5 tries; after that it requires a Pro license key, which the server verifies against Lemon Squeezy on every request (cached).
-3. **Personality modes** (Roast, Gen Z, Flirty, Passive-Aggressive, Story) are AI-only and Pro-only — enforced server-side.
+Topics live in `src/data/topics.js` (shared by page and server), styles in `src/data/styles.js`.
+
+## Run it locally
+
+```bash
+npm install
+# .dev.vars (gitignored)
+OPENROUTER_API_KEY=sk-or-...
+
+npx wrangler d1 migrations apply emojify --local
+npm run build && npx wrangler pages dev dist
+```
+
+## Deploy
+
+```bash
+npx wrangler d1 migrations apply emojify --remote   # only when migrations/ changed
+npm run build && npx wrangler pages deploy dist --project-name emojify --branch main
+```
+
+The Pro unlock ($4.90, license keys) was switched off when everything went free; its server endpoints (`functions/api/license`, `functions/api/stripe`) are still there, unused, and [SETUP-MONETIZATION.md](./SETUP-MONETIZATION.md) describes them.
 
 ## Examples
 

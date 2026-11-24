@@ -1,7 +1,7 @@
-// Renders a shareable 1080x1080 PNG: the translation pasted up as a fluorescent
-// flyer on the board, in the page's own tokens (kraft or black wall).
-// Free users get a small watermark: that watermark is the growth loop.
-// Riddle cards hide the sentence, so a group can guess in the comments.
+// Renders a shareable 1080x1080 PNG: a riddle pasted up as a fluorescent flyer
+// on the board, in the page's own tokens (kraft or black wall). The sentence
+// never appears, so a group can guess in the comments; the riddle's own link
+// sits under the flyer, so anyone who sees the card can play it.
 
 const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -27,7 +27,7 @@ const graphemes = (s) =>
     ? Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s), (g) => g.segment)
     : Array.from(s);
 
-export const generateShareCard = async ({ input, emojis, watermark, riddle = false }) => {
+export const generateShareCard = async ({ puzzle, topicLabel = '', link = '' }) => {
   const W = 1080;
   const H = 1080;
   const display = token('--font-display');
@@ -69,41 +69,51 @@ export const generateShareCard = async ({ input, emojis, watermark, riddle = fal
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 
-  // The sentence in poster capitals (or the riddle's question)
-  const said = (riddle ? 'Guess what I said' : input).toUpperCase();
-  const size = said.length <= 30 ? 120 : said.length <= 70 ? 92 : 68;
+  // The question in poster capitals, then the topic if there is one
+  const size = 120;
   ctx.font = `400 ${size}px ${display}`;
-  const saidLines = wrapByWidth(ctx, said.split(/\s+/), maxWidth, ' ');
-  const shown = saidLines.slice(0, 4);
-  if (saidLines.length > 4) shown[3] = `${shown[3].replace(/\s+\S*$/, '')}…`;
   let y = sheet.y + 64 + size * 0.9;
-  for (const line of shown) {
+  for (const line of wrapByWidth(ctx, ['FILL', 'IN', 'THE', 'BLANKS'], maxWidth, ' ')) {
     ctx.fillText(line, left, y);
     y += size * 1.02;
   }
+  if (topicLabel) {
+    ctx.font = `500 44px ${body}`;
+    ctx.fillText(`Topic: ${topicLabel}`, left, y + 8);
+    y += 56;
+  }
 
-  // The emojis, big
-  const emojiSize = 128;
-  ctx.font = `${emojiSize}px ${emojiFont}`;
-  const emojiLines = wrapByWidth(ctx, graphemes(emojis), maxWidth).slice(0, 3);
-  y += 40 + emojiSize * 0.85;
-  for (const line of emojiLines) {
+  // The riddle: clue words and emoji blanks on the same lines, as large as fits.
+  // A unit wider than a line (a long run of emojis) is broken between emojis.
+  const room = sheet.y + sheet.h - 56 - (y + 32);
+  const units = (ctx) =>
+    puzzle
+      .split(/\s+/)
+      .filter(Boolean)
+      .flatMap((u) => (ctx.measureText(u).width > maxWidth ? graphemes(u) : [u]));
+  let lines = [];
+  let riddleSize = 96;
+  for (riddleSize of [96, 84, 72, 62, 54, 46, 40]) {
+    ctx.font = `500 ${riddleSize}px ${body}, ${emojiFont}`;
+    lines = wrapByWidth(ctx, units(ctx), maxWidth, ' ');
+    if (lines.length * riddleSize * 1.25 <= room) break;
+  }
+  y += 32 + riddleSize;
+  for (const line of lines.slice(0, Math.max(1, Math.floor(room / (riddleSize * 1.25))))) {
     ctx.fillText(line, left, y);
-    y += emojiSize * 1.15;
+    y += riddleSize * 1.25;
   }
   ctx.restore();
 
-  // Wordmark and, for free cards, the way back
+  // Wordmark and the way to play
   ctx.fillStyle = token('--color-ink');
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
   ctx.font = `400 64px ${display}`;
   ctx.fillText('EMOJIFY', 110, H - 64);
-  if (watermark) {
-    ctx.textAlign = 'right';
-    ctx.font = `500 36px ${body}`;
-    ctx.fillText(`Make yours at ${window.location.host || 'emojify'}`, W - 110, H - 72);
-  }
+  ctx.textAlign = 'right';
+  ctx.font = `500 36px ${body}`;
+  ctx.fillText(`Guess at ${link || window.location.host || 'emojify.co'}`, W - 110, H - 72);
 
   return canvas.toDataURL('image/png');
 };

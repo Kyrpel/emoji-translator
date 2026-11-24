@@ -15,22 +15,33 @@ export const readJson = async (request) => {
   }
 };
 
-// Modes available to free users during the teaser allowance.
-export const FREE_MODES = ['vibe', 'literal', 'chaos', 'minimal'];
-// Pro-only personality modes — always require a valid license.
-export const PRO_MODES = ['roast', 'genz', 'flirty', 'passive', 'story'];
+// How the AI turns a sentence into a riddle: the sentence itself, with some
+// words swapped for emojis (fill in the blanks). One prompt per style; every
+// style is free. The page lists the same ids in src/data/styles.js.
+const RIDDLE_RULE = [
+  'Turn the sentence into a fill-in-the-blanks emoji riddle for a friend to guess.',
+  'Keep the small words (I, my, the, a, and, at, to, is…) exactly as written. Replace most of the important words (people, things, places, actions) with emojis, but keep one or two important words as clues.',
+  'Keep the original word order. Never add, change or translate words. Reply with the riddle only, on one line.',
+  'Examples:',
+  'I cut my own fringe at 3am → I ✂️ my own 💇 at 🌙🕒',
+  'My dog ate my homework on the bus → My 🐶 ate my 📚📝 on the 🚌',
+].join('\n');
 
-export const MODE_PROMPTS = {
-  vibe: 'You are an emoji translator. Capture the emotion and feeling of the sentence in 8-12 emojis. Return ONLY emojis, no text.',
-  literal: 'You are an emoji translator. Translate the sentence roughly one emoji per meaningful word, in the original word order. Return ONLY emojis, no text.',
-  chaos: 'You are a chaotic emoji translator. Produce a wild, fun, loosely-related mix of 8-15 emojis for the sentence. Be unpredictable. Return ONLY emojis, no text.',
-  minimal: 'You are an emoji translator. Distill the sentence into EXACTLY 3 emojis that capture its essence. Return ONLY emojis, no text.',
-  roast: 'You are a savage roast comedian who speaks only in emoji. Mock the sentence (lovingly but brutally) with 6-10 emojis. Think clown, skull, snail, chart-going-down energy where fitting. Return ONLY emojis, no text.',
-  genz: 'You are extremely online Gen Z. Translate the sentence into 6-12 emojis with maximum Gen Z energy (💀✋😭🔥-style irony, never literal). Return ONLY emojis, no text.',
-  flirty: 'You are a playful flirt who speaks only in emoji. Translate the sentence into 6-10 charming, cheeky, flirty emojis. Keep it tasteful. Return ONLY emojis, no text.',
-  passive: 'You are passive-aggressive politeness incarnate. Translate the sentence into 6-10 emojis that look sweet but drip with passive aggression (🙂🙃✨ energy). Return ONLY emojis, no text.',
-  story: 'You are an emoji storyteller. Retell the sentence as a mini narrative of 12-20 emojis in chronological order, like a tiny movie. Return ONLY emojis, no text.',
+const STYLE_NOTES = {
+  classic: 'Use one or two emojis for each word you replace.',
+  hard: 'Hard mode: replace every important word; keep only the small words.',
+  story: 'Use two or three emojis for each word you replace, like a tiny comic strip.',
+  chaos: 'Use wildly over-the-top emojis for the words you replace, and end with two random ones to throw them off.',
+  roast: 'Pick emojis that lovingly roast whoever said it (clown, skull, snail energy where it fits).',
+  genz: 'Pick emojis with extremely online Gen Z energy (💀😭🔥 irony).',
+  flirty: 'Pick cheeky, flirty, tasteful emojis.',
+  passive: 'Pick emojis that look sweet but drip with passive aggression (🙂🙃✨ energy).',
 };
+export const STYLE_PROMPTS = Object.fromEntries(
+  Object.entries(STYLE_NOTES).map(([id, note]) => [id, `${RIDDLE_RULE}\n${note}`])
+);
+// Names an older cached page may still send.
+export const STYLE_ALIASES = { vibe: 'classic', literal: 'story', minimal: 'hard' };
 
 // ---------------------------------------------------------------------------
 // License validation, with in-memory cache. Two kinds of keys:
@@ -97,19 +108,20 @@ export const validateLicense = async (env, licenseKey, instanceId) => {
 };
 
 // ---------------------------------------------------------------------------
-// Best-effort per-IP rate limit for unlicensed (teaser) traffic.
-// In-memory per isolate — bounds abuse, not bulletproof; the OpenAI dashboard
-// hard spend cap is the real backstop.
+// Best-effort per-IP daily limits, one bucket per action. In-memory per
+// isolate: it bounds abuse, it is not bulletproof. The AI key's own limit is
+// the real backstop.
 // ---------------------------------------------------------------------------
 const ipBuckets = new Map();
-const TEASER_LIMIT_PER_DAY = 30;
 
-export const teaserRateLimited = (request) => {
-  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+export const clientIp = (request) =>
+  request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+
+export const rateLimited = (request, bucket, perDay) => {
   const today = new Date().toISOString().slice(0, 10);
-  const key = `${ip}:${today}`;
+  const key = `${bucket}:${clientIp(request)}:${today}`;
   const count = (ipBuckets.get(key) || 0) + 1;
   ipBuckets.set(key, count);
-  if (ipBuckets.size > 10000) ipBuckets.clear(); // crude memory bound
-  return count > TEASER_LIMIT_PER_DAY;
+  if (ipBuckets.size > 20000) ipBuckets.clear(); // crude memory bound
+  return count > perDay;
 };
