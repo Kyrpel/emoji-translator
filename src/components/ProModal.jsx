@@ -120,7 +120,12 @@ const ProModal = ({ isDark, onClose, onActivated }) => {
             )}
           </div>
 
-          <p className="dialog__fine">Your key arrives by email right after purchase. 7-day refund, no questions asked.</p>
+          <p className="dialog__fine">
+            {CHECKOUT_URL
+              ? 'Your key arrives by email right after purchase.'
+              : 'Your license key appears right after payment. Save it to use Pro on your other devices.'}{' '}
+            7-day refund, no questions asked.
+          </p>
 
           <div>
             <button type="button" onClick={onClose} className="link">
