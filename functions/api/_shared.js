@@ -30,8 +30,6 @@ const RIDDLE_RULE = [
 const STYLE_NOTES = {
   classic: 'Use one or two emojis for each word you replace.',
   hard: 'Hard mode: replace every important word; keep only the small words.',
-  story: 'Use two or three emojis for each word you replace, like a tiny comic strip.',
-  chaos: 'Use wildly over-the-top emojis for the words you replace, and end with two random ones to throw them off.',
   roast: 'Pick emojis that lovingly roast whoever said it (clown, skull, snail energy where it fits).',
   genz: 'Pick emojis with extremely online Gen Z energy (💀😭🔥 irony).',
   flirty: 'Pick cheeky, flirty, tasteful emojis.',
@@ -40,8 +38,8 @@ const STYLE_NOTES = {
 export const STYLE_PROMPTS = Object.fromEntries(
   Object.entries(STYLE_NOTES).map(([id, note]) => [id, `${RIDDLE_RULE}\n${note}`])
 );
-// Names an older cached page may still send.
-export const STYLE_ALIASES = { vibe: 'classic', literal: 'story', minimal: 'hard' };
+// Names an older cached page may still send (chaos and story were retired).
+export const STYLE_ALIASES = { vibe: 'classic', literal: 'classic', story: 'classic', chaos: 'classic', minimal: 'hard' };
 
 // ---------------------------------------------------------------------------
 // License validation, with in-memory cache. Two kinds of keys:

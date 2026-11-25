@@ -14,8 +14,14 @@ import DailyPuzzle from './components/DailyPuzzle.jsx';
 
 // The home page riddle. Same puzzle as DEMO in functions/api/_riddle.js, which holds its answer.
 const DEMO = { id: 'demo', name: null, topic: null, puzzle: 'My 🐱 knocked my ☕ onto my 💻' };
-// What the flyer shows before you type.
-const EXAMPLE = { text: 'I cut my own fringe at 3am', puzzle: 'I ✂️ my own 💇 at 🌙🕒', topic: 'decision' };
+// What the flyer shows before you type; its riddle comes from the chosen style (styles.js `example`).
+const EXAMPLE = { text: 'I cut my own fringe at 3am', topic: 'decision' };
+
+// The offline riddle for a style: hard mode hides more, the tone styles add their emojis.
+const draftFor = (text, styleId) => {
+  const s = styleById(styleId);
+  return localRiddle(text, { hard: !!s.hard, flavor: s.flavor });
+};
 
 const MODE_STORAGE_KEY = 'emojify_mode';
 const BASE_TITLE = typeof document !== 'undefined' ? document.title : 'EMOJIFY';
@@ -64,6 +70,7 @@ const EmojiRiddles = () => {
   const [input, setInput] = useState('');
   const [topic, setTopic] = useState(null);
   const [style, setStyle] = useState('classic');
+  const [showMoreStyles, setShowMoreStyles] = useState(false);
   const [isDark, setIsDark] = useState(readStoredMode);
   const [draft, setDraft] = useState('');
   const [ai, setAi] = useState(null); // { text, style, puzzle }: the AI's riddle for that text
@@ -97,7 +104,7 @@ const EmojiRiddles = () => {
 
   // The flyer rewrites itself as you type, from the dictionary (instant, offline).
   useEffect(() => {
-    setDraft(localRiddle(input, styleById(style).local));
+    setDraft(draftFor(input, style));
   }, [input, style]);
 
   // Light kraft board or black wall; remembered on this device.
@@ -143,7 +150,7 @@ const EmojiRiddles = () => {
 
   const shuffle = () => {
     if (showingAi) make();
-    else setDraft(localRiddle(input, styleById(style).local));
+    else setDraft(draftFor(input, style));
   };
 
   const openShare = () => {
@@ -248,7 +255,7 @@ const EmojiRiddles = () => {
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
   const posterText = hasInput ? input : EXAMPLE.text;
-  const posterPuzzle = hasInput ? puzzle : EXAMPLE.puzzle;
+  const posterPuzzle = hasInput ? puzzle : styleById(style).example;
   const posterTopic = topicById(hasInput ? topic : EXAMPLE.topic);
   const fromName = incoming?.kind === 'server' ? incomingData?.riddle?.name : null;
   const playRiddle = incoming?.kind === 'local' ? incoming.riddle : incomingData?.riddle;
@@ -302,24 +309,26 @@ const EmojiRiddles = () => {
                 </p>
               </div>
 
-              <div className="hero__slips" role="group" aria-labelledby="topics-label">
-                <span className="hero__slips-label" id="topics-label">
-                  Pick a topic:
-                </span>
-                {TOPICS.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    className="slip"
-                    aria-pressed={topic === t.id}
-                    onClick={() => {
-                      setTopic(topic === t.id ? null : t.id);
-                      inputRef.current?.focus({ preventScroll: true });
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+              <div className="topics">
+                <p className="topics__label" id="topics-label">
+                  What’s it about? <span className="topics__note">Friends see this as a hint.</span>
+                </p>
+                <div className="hero__slips" role="group" aria-labelledby="topics-label">
+                  {TOPICS.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className="slip"
+                      aria-pressed={topic === t.id}
+                      onClick={() => {
+                        setTopic(topic === t.id ? null : t.id);
+                        inputRef.current?.focus({ preventScroll: true });
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="hero__input">
@@ -417,9 +426,11 @@ const EmojiRiddles = () => {
               </figure>
 
               <div className="hero__modes">
-                <fieldset className="modes">
-                  <legend>Style</legend>
-                  {STYLES.map((s) => (
+                <fieldset className="modes" aria-describedby="style-about">
+                  <legend>
+                    Style: <span className="modes__note">how the emojis are picked</span>
+                  </legend>
+                  {STYLES.filter((s) => !s.more || showMoreStyles || style === s.id).map((s) => (
                     <button
                       key={s.id}
                       type="button"
@@ -431,7 +442,15 @@ const EmojiRiddles = () => {
                       {s.label}
                     </button>
                   ))}
+                  {!showMoreStyles && (
+                    <button type="button" className="link modes__more" onClick={() => setShowMoreStyles(true)}>
+                      more styles
+                    </button>
+                  )}
                 </fieldset>
+                <p className="modes__about" id="style-about" aria-live="polite">
+                  {styleById(style).about}
+                </p>
               </div>
             </div>
           </div>

@@ -141,7 +141,9 @@ h3 { font: 500 var(--text-title)/1.2 var(--font-body); letter-spacing: 0; }
 .hero__head .lead { margin-top: var(--space-md); }
 .hero__input { display: grid; gap: var(--space-md); }
 .hero__slips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
-.hero__slips-label { margin-right: var(--space-2xs); font: 500 var(--text-sm)/1.3 var(--font-body); }
+.topics { display: grid; gap: var(--space-sm); min-width: 0; }
+.topics__label { font: 500 1rem/1.35 var(--font-body); }
+.topics__note, .modes__note { font-weight: 400; }
 .hero__modes { display: grid; gap: var(--space-md); }
 .stage { display: grid; gap: var(--space-xl); min-width: 0; }
 
@@ -159,7 +161,9 @@ h3 { font: 500 var(--text-title)/1.2 var(--font-body); letter-spacing: 0; }
 .ai__msg { flex-basis: 100%; font: 500 var(--text-sm)/1.4 var(--font-body); }
 
 .modes { display: flex; flex-wrap: wrap; gap: var(--space-xs); min-width: 0; margin: 0; padding: 0; border: 0; }
-.modes legend { float: left; width: 100%; margin-bottom: var(--space-xs); padding: 0; font: 500 var(--text-sm)/1.3 var(--font-body); }
+.modes legend { float: left; width: 100%; margin-bottom: var(--space-xs); padding: 0; font: 500 1rem/1.35 var(--font-body); }
+.modes__more { margin-left: var(--space-xs); }
+.modes__about { margin-top: calc(var(--space-md) * -1 + var(--space-xs)); font: italic 400 1.0625rem/1.4 var(--font-body); }
 
 /* the poster: the signature */
 .poster {
@@ -190,9 +194,10 @@ h3 { font: 500 var(--text-title)/1.2 var(--font-body); letter-spacing: 0; }
   .hero__grid { gap: var(--space-lg); }
   .hero__text, .stage { display: contents; }
   .hero__head { order: 1; }
-  .hero__slips { order: 2; flex-wrap: nowrap; overflow-x: auto; margin-inline: calc(var(--gutter) * -1); padding: var(--space-2xs) var(--gutter) var(--space-xs); scrollbar-width: none; }
+  .topics { order: 2; }
+  .hero__slips { flex-wrap: nowrap; overflow-x: auto; margin-inline: calc(var(--gutter) * -1); padding: var(--space-2xs) var(--gutter) var(--space-xs); scrollbar-width: none; }
   .hero__slips::-webkit-scrollbar { display: none; }
-  .hero__slips-label { flex-shrink: 0; }
+  .slip { flex-shrink: 0; }
   .hero__input { order: 3; }
   .poster { order: 4; }
   .hero__modes { order: 5; }

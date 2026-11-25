@@ -17,12 +17,12 @@ Everything is free. There are no accounts: your browser keeps a random player id
 
 ## Features
 
-- 🧩 **Fill-in-the-blanks riddles with friends**: the small words and one or two clue words stay, the rest become emojis (`src/lib/riddleText.js` checks that a riddle only shows words from its own sentence, hides at least a third of the key words and keeps at least 30% of the words; the AI gets two tries, then the offline version stands in); topics to start from (my ex, my weekend, my job…), eight styles (classic, hard mode, story, chaos, roast, gen z, flirty, passive-aggressive), a link per riddle (`/?r=id`) whose preview reads "Can you guess what Maria said? 🐱☕💥"
+- 🧩 **Fill-in-the-blanks riddles with friends**: the small words and one or two clue words stay, the rest become emojis (`src/lib/riddleText.js` checks that a riddle only shows words from its own sentence, hides at least a third of the key words and keeps at least 30% of the words; the AI gets two tries, then the offline version stands in); topics to start from (my ex, my weekend, my job…), six styles (easy, hard and roast up front; gen z, flirty and passive-aggressive behind "more styles"), each with a one-line explanation and its own example on the flyer, a link per riddle (`/?r=id`) whose preview reads "Can you guess what Maria said? 🐱☕💥"
 - ⚖️ **An AI judge**: accepts synonyms and paraphrases ("kitty spilled my latte" counts), writes a one-line reaction to each guess, and never gets to hint at the answer (a reaction that uses a word from the secret is swapped for a canned one)
 - 📬 **Your riddles**: who played, who got it in how many tries, every guess with the judge's line, and a count of new guesses in the nav and the tab title
 - 🔁 **Send one back**: the end of every game puts the player in front of the composer
 - 📅 **EMOJIFY Daily**: one movie or song a day in emoji, the same for everyone, five guesses, a hint after each miss, local streaks, and a spoiler-free result to paste into groups (`EMOJIFY Daily #12 🎬 🟥🟨🟩 3/5`). Answers live server-side in `functions/api/_daily-puzzles.js` (set `DAILY_EPOCH` to your launch day, add more at the end) and are checked by `functions/api/daily.js`
-- ✍️ **A live flyer**: while you type, the dictionary engine (`src/lib/emojify.js`, 1,600+ words, fuzzy spelling, sentiment) rewrites the poster instantly; it also stands in whenever the AI is busy
+- ✍️ **A live flyer**: while you type, the offline riddle maker (`src/lib/emojify.js`, 1,600+ dictionary words, fuzzy spelling) rewrites the poster instantly in the chosen style; it also stands in whenever the AI is busy
 - 🌶️ **Cheeky words** (`src/data/spicyEmojis.js`): PG-13, exact match only
 - 🖼️ **Riddle cards** for Stories and group chats, with the riddle's own link on them
 - 🌓 **Kraft / black-wall themes**, responsive from phones up
